@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LocalSync | Panel Web Local (Prototipo Fase 1 - Grupo G1)</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <header class="topbar">
+        <div>
+            <h1>LOCALSYNC <span class="badge">Grupo G1 | Sistemas Operativos</span></h1>
+            <p>Prototipo de Sincronización P2P de Archivos en Red Local (Ubuntu Linux)</p>
+            <p class="authors"><strong>Integrantes Oficiales:</strong> Valery Michell Herrera Roca &bull; Daniel Felipe Rojas Gonzales</p>
+        </div>
+        <div class="status-box">
+            <span class="dot warning"></span>
+            Estado del Proyecto: <strong>Fase 1 (Estructuración y Base Verificable)</strong>
+        </div>
+    </header>
+
+    <div class="demo-banner">
+        <strong>AVISO DE TRANSPARENCIA TÉCNICA (FASE 1):</strong>
+        Esta interfaz muestra la estructura del panel de control local conectada a la API <code>FastAPI</code>.
+        El esquema <code>SQLite 3</code>, el cálculo de integridad <code>SHA-256</code> y la validación de rutas están
+        <strong>implementados y probados</strong>. El transporte por <code>Sockets TCP</code>, el cifrado <code>TLS</code> y
+        el monitoreo en tiempo real con <code>Watchdog</code> se encuentran <strong>planificados para las Fases 3 a 7</strong>.
+    </div>
+
+    <main class="container">
+        <section class="card">
+            <h2>1. Estado Real de Componentes (Consultado desde <code>/api/estado</code>)</h2>
+            <div id="apiStatusContainer" class="status-grid">
+                <p>Consultando endpoint <code>/api/estado</code> (si abres este archivo directamente sin iniciar Uvicorn, se mostrarán los indicadores estáticos de Fase 1)...</p>
+            </div>
+            <div class="actions">
+                <button id="btnRefresh" class="primary">Consultar /api/estado</button>
+                <button id="btnInitDb" class="secondary">Inicializar Esquema SQLite (/api/inicializar-bd)</button>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2>2. Control de Sincronización Local (RF-12 - Estructura Inicial)</h2>
+            <p>
+                <strong>Alcance actual de los controles:</strong> Actualizan el estado de pausa en la instancia de la API local.
+                La conexión con el demonio <code>Watchdog</code> y los sockets TCP se integrará en las Fases 3 y 4.
+            </p>
+            <div class="actions">
+                <button id="btnPause">Marcar Estado: Pausado (En Memoria API)</button>
+                <button id="btnResume" class="primary">Marcar Estado: Activo (En Memoria API)</button>
+            </div>
+            <p id="controlFeedback" class="feedback-msg">Estado actual en API: Sin cambios enviados.</p>
+        </section>
+
+        <section class="card">
+            <h2>3. Vista Previa de Datos Simulados de Interfaz (Modo Demostración)</h2>
+            <p class="sim-tag">ETIQUETA EXPLÍCITA: DATOS SIMULADOS DE DEMOSTRACIÓN (NO REPRESENTAN TRANSFERENCIAS REALES)</p>
+            <ul id="eventList">
+                <li><strong>[DATO SIMULADO - DEMO UI]</strong> Nodo Par de Ejemplo: <code>192.168.10.22:9001</code> (Transporte TCP pendiente Fase 3).</li>
+                <li><strong>[DATO SIMULADO - DEMO UI]</strong> Directorio Ejemplo: <code>/home/ubuntu/LocalSync_Compartida</code> (Observador Watchdog pendiente Fase 4).</li>
+                <li><strong>[MÓDULO REAL VERIFICADO]</strong> Validador SHA-256 y protección anti-Path Traversal operativos en <code>src/backend/core/engine.py</code>.</li>
+            </ul>
+        </section>
+    </main>
+
+    <script src="/static/js/app.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

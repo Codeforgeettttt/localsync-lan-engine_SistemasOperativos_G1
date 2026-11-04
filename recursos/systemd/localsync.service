@@ -1,0 +1,32 @@
+# ============================================================================
+# UNIDAD SYSTEMD: LocalSync API Local (Fase 1 - Estructuración)
+# Proyecto: LocalSync - Sistemas Operativos (Grupo G1)
+# Integrantes: Valery Michell Herrera Roca, Daniel Felipe Rojas Gonzales
+# ============================================================================
+
+[Unit]
+Description=LocalSync Local Control API Service (Prototipo Fase 1 - FastAPI)
+Documentation=https://github.com/LocalSync_SistemasOperativos_G1
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=localsync
+Group=localsync
+WorkingDirectory=/opt/LocalSync_SistemasOperativos_G1
+EnvironmentFile=-/opt/LocalSync_SistemasOperativos_G1/config/localsync.env
+Environment="PYTHONPATH=/opt/LocalSync_SistemasOperativos_G1"
+Environment="LOCALSYNC_API_HOST=127.0.0.1"
+Environment="LOCALSYNC_API_PORT=8080"
+Environment="LOCALSYNC_DB_PATH=/var/lib/localsync/localsync_meta.db"
+ExecStart=/opt/LocalSync_SistemasOperativos_G1/venv/bin/uvicorn src.backend.api.routes:app --host ${LOCALSYNC_API_HOST} --port ${LOCALSYNC_API_PORT}
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target
