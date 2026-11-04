@@ -1,0 +1,28 @@
+%% Diagrama de Arquitectura P2P LocalSync (Grupo G1)
+%% Integrantes: Valery Michell Herrera Roca, Daniel Felipe Rojas Gonzales
+flowchart LR
+    subgraph NodoA["Nodo A (Ubuntu Linux)"]
+        UIA["Frontend Web Local (HTML/CSS/JS) - Estructurado F1"]
+        APIA["API Local FastAPI - Implementado F1"]
+        COREA["Motor Core: SHA-256 y Rutas (Implementado F1) / Watchdog (Planificado F4)"]
+        DBA[("SQLite 3 Local (Implementado F1)")]
+        SYSA["systemd Service (Inicia API en F1)"]
+        UIA --> APIA --> COREA --> DBA
+        SYSA -.-> APIA
+    end
+
+    subgraph CanalLAN["Red Local (LAN) - Sin Servidor Central"]
+        PROTO["Protocolo JSON LOCALSYNC_P2P_V1 (Implementado F1)<br/>Transporte Sockets TCP (Planificado F3)<br/>Seguridad TLS (Planificado F7)"]
+    end
+
+    subgraph NodoB["Nodo B (Ubuntu Linux)"]
+        UIB["Frontend Web Local (HTML/CSS/JS) - Estructurado F1"]
+        APIB["API Local FastAPI - Implementado F1"]
+        COREB["Motor Core: SHA-256 y Rutas (Implementado F1) / Watchdog (Planificado F4)"]
+        DBB[("SQLite 3 Local (Implementado F1)")]
+        SYSB["systemd Service (Inicia API en F1)"]
+        UIB --> APIB --> COREB --> DBB
+        SYSB -.-> APIB
+    end
+
+    COREA <-.-> PROTO <-.-> COREB

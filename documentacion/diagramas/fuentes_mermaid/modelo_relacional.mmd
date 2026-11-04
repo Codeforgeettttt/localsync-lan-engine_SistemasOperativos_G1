@@ -1,0 +1,61 @@
+%% Modelo Entidad-Relación SQLite 3 - LocalSync (Grupo G1)
+%% Integrantes: Valery Michell Herrera Roca, Daniel Felipe Rojas Gonzales
+erDiagram
+    CARPETAS_AUTORIZADAS ||--o{ ARCHIVOS_SINCRONIZADOS : "contiene (1:N)"
+    ARCHIVOS_SINCRONIZADOS ||--o{ HISTORIAL_VERSIONES : "registra (1:N)"
+    ARCHIVOS_SINCRONIZADOS ||--o{ COLA_SINCRONIZACION : "encola (1:N)"
+    NODOS_PARES ||--o{ COLA_SINCRONIZACION : "recibe (1:N)"
+
+    CARPETAS_AUTORIZADAS {
+        INTEGER id_carpeta PK
+        TEXT ruta_absoluta_linux UK
+        TEXT alias_carpeta
+        TEXT permisos_posix
+        INTEGER sincronizacion_activa
+        DATETIME fecha_creacion
+    }
+    ARCHIVOS_SINCRONIZADOS {
+        INTEGER id_archivo PK
+        INTEGER id_carpeta FK,UK
+        TEXT ruta_relativa UK
+        TEXT hash_sha256
+        INTEGER tamano_bytes
+        REAL fecha_modificacion
+        TEXT estado_actual
+        INTEGER es_tombstone
+    }
+    NODOS_PARES {
+        TEXT id_par PK
+        TEXT nombre_nodo
+        TEXT ip_lan UK
+        INTEGER puerto_tcp
+        TEXT token_auth_hash
+        TEXT estado_autorizacion
+        DATETIME ultima_conexion
+    }
+    HISTORIAL_VERSIONES {
+        INTEGER id_version PK
+        INTEGER id_archivo FK
+        TEXT hash_sha256_previo
+        TEXT ruta_respaldo_local
+        TEXT origen_nodo
+        INTEGER es_conflicto
+        DATETIME fecha_registro
+    }
+    COLA_SINCRONIZACION {
+        INTEGER id_operacion PK
+        INTEGER id_archivo FK
+        TEXT id_par_destino FK
+        TEXT tipo_evento
+        INTEGER intentos_envio
+        TEXT estado_cola
+        DATETIME timestamp_evento
+    }
+    LOGS_AUDITORIA {
+        INTEGER id_log PK
+        TEXT nivel
+        TEXT modulo_origen
+        TEXT mensaje_detalle
+        TEXT ip_par_asociado
+        DATETIME timestamp_log
+    }

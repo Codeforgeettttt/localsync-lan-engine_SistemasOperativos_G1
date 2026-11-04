@@ -1,0 +1,16 @@
+%% Flujo de Sincronización en 8 Etapas - LocalSync (Grupo G1)
+sequenceDiagram
+    participant FS as Sistema de Archivos (Ubuntu)
+    participant WD as Watchdog / Motor Local (Nodo A)
+    participant DB as SQLite 3 Local (Nodo A)
+    participant TCP as Canal P2P Sockets TCP/TLS (Nodo B)
+
+    Note over FS,TCP: Etapas 03, 04, 05 y 08 cuentan con funciones base en Fase 1. Etapas 01, 02, 06 y 07 planificadas Fases 3-7.
+    FS->>WD: 01. Evento local (Creación/Modificación/Borrado) [Planificado F4]
+    WD->>WD: 02. Detección inotify y espera debounce [Planificado F4]
+    WD->>DB: 03. Cálculo SHA-256 (calcular_sha256) y consulta metadatos [Base F1]
+    WD->>TCP: 04. Aviso al par (crear_mensaje_control JSON) [Base F1]
+    TCP->>TCP: 05. Validación de ruta segura (validar_ruta_segura) [Base F1]
+    WD->>TCP: 06. Envío de bloques por Socket TCP a archivo .part [Planificado F3]
+    TCP->>TCP: 07. Verificación SHA-256 en receptor y renombrado atómico [Planificado F4]
+    TCP->>DB: 08. Persistencia en SQLite o encolamiento ante desconexión [Esquema F1]
