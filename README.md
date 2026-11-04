@@ -11,7 +11,7 @@
 
 ---
 
-## 👥 1. Integrantes Oficiales del Equipo (Grupo G1)
+##  1. Integrantes Oficiales del Equipo (Grupo G1)
 
 | Nombre Completo | Responsabilidades Principales en el Proyecto |
 | :--- | :--- |
@@ -20,13 +20,13 @@
 
 ---
 
-## 📌 2. Descripción General del Proyecto
+##  2. Descripción General del Proyecto
 
 **LocalSync** es una propuesta y prototipo en desarrollo de una aplicación web local para computadores con **Ubuntu Linux** conectados a una misma red de área local (**LAN**). Su propósito es permitir la sincronización directa de archivos mediante una arquitectura **Punto a Punto (P2P)**, sin utilizar un servidor central, sin almacenamiento en la nube y sin depender de servicios externos para la transferencia de datos.
 
 ---
 
-## ⚠️ 3. Problema o Necesidad y Justificación
+##  3. Problema o Necesidad y Justificación
 
 ### Planteamiento del Problema y Necesidad
 En laboratorios universitarios, oficinas técnicas y entornos educativos basados en Linux, el intercambio manual de archivos (memorias USB, copias manuales o aplicaciones de mensajería) ocasiona pérdida silenciosa de cambios, proliferación de versiones desactualizadas y duplicidad de información. Por otra parte, las plataformas de almacenamiento en la nube no son viables cuando no hay conectividad a internet o cuando existen políticas estrictas de privacidad dentro de la red local.
@@ -42,7 +42,7 @@ El proyecto permite aplicar y evaluar de manera experimental conceptos esenciale
 
 ---
 
-## 🎯 4. Objetivos del Proyecto
+##  4. Objetivos del Proyecto
 
 ### Objetivo General
 Desarrollar y evaluar una aplicación web para Linux con arquitectura P2P que permita sincronizar archivos entre dos equipos en red local, incorporando detección de cambios, transferencia directa, verificación de integridad, gestión de conflictos y recuperación de versiones, sin servicios externos de almacenamiento.
@@ -57,7 +57,7 @@ Desarrollar y evaluar una aplicación web para Linux con arquitectura P2P que pe
 
 ---
 
-## 🔭 5. Alcance Inicial, Usuarios y Beneficiarios
+##  5. Alcance Inicial, Usuarios y Beneficiarios
 
 * **Alcance Inicial Incluido:**
   * Sincronización diseñada para operar entre **2 instancias con Ubuntu Linux** conectadas en red local (LAN).
@@ -81,7 +81,7 @@ Desarrollar y evaluar una aplicación web para Linux con arquitectura P2P que pe
 
 ---
 
-## 🔍 7. Estado Actual Real del Proyecto (Transparencia Técnica — Entrega 1)
+## 🔍 . Estado Actual Real del Proyecto (Transparencia Técnica — Entrega 1)
 
 | Categoría de Estado | Componentes del Proyecto | Detalle de Verificación Real |
 | :--- | :--- | :--- |
@@ -91,7 +91,7 @@ Desarrollar y evaluar una aplicación web para Linux con arquitectura P2P que pe
 
 ---
 
-## 🏗️ 8. Arquitectura P2P y Modelo Entidad-Relación
+##  8. Arquitectura P2P y Modelo Entidad-Relación
 
 ### Diagrama de Arquitectura P2P (Estado Fase 1 vs. Planificado)
 ![Diagrama de Arquitectura Inicial](documentacion/diagramas/arquitectura_inicial.png)
@@ -106,7 +106,7 @@ Desarrollar y evaluar una aplicación web para Linux con arquitectura P2P que pe
 
 ---
 
-## 🛠️ 9. Tecnologías Utilizadas y Previstas
+##  9. Tecnologías Utilizadas y Previstas
 
 | Componente | Tecnología | Estado en Entrega 1 | Función en el Sistema |
 | :--- | :--- | :--- | :--- |
@@ -204,7 +204,7 @@ LocalSync_SistemasOperativos_G1/
 
 ---
 
-## 💻 11. Requisitos de Hardware/Software e Instrucciones de Ejecución
+##  11. Requisitos de Hardware/Software e Instrucciones de Ejecución
 
 ```bash
 cd LocalSync_SistemasOperativos_G1
@@ -222,7 +222,7 @@ uvicorn src.backend.api.routes:app --host 127.0.0.1 --port 8080
 
 ---
 
-## 📈 12. Cronograma y Próximos Pasos (Plan de 8 Fases)
+##  12. Cronograma y Próximos Pasos (Plan de 8 Fases)
 
 1. **Fase 1 (Semana 1) — Investigación, Diseño y Estructuración [ESTADO ACTUAL]**
 2. **Fase 2 (Semana 2) — Entorno Linux LAN**
