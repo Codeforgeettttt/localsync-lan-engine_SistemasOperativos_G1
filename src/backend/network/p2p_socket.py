@@ -12,9 +12,10 @@ OPERACIONES_VALIDAS = {"CREATE", "MODIFY", "DELETE", "PING", "ACK"}
 
 
 class NodoP2PTCP:
-    def __init__(self, host: str = "0.0.0.0", port: int = DEFAULT_PORT) -> None:
+    def __init__(self, host: str = "0.0.0.0", port: int = DEFAULT_PORT, carpeta_autorizada=None) -> None:
         if not (1024 <= int(port) <= 65535):
             raise ValueError("El puerto TCP debe estar entre 1024 y 65535.")
+        self.carpeta_autorizada = carpeta_autorizada
         self.host: str = host
         self.port: int = int(port)
         self.transporte_tcp_activo: bool = False
@@ -85,9 +86,14 @@ class NodoP2PTCP:
         """Atiende un mensaje PING y devuelve ACK."""
         conexion.settimeout(5)
         mensaje = self.decodificar_mensaje_control(self.recibir_trama(conexion))
-        if mensaje["operacion"] != "PING":
-            raise ValueError("El servidor inicial solo admite PING.")
-        self.enviar_trama(conexion, self.crear_mensaje_control("ACK", "", "0" * 64, 0))
+        if mensaje["operacion"] == "PING":
+            self.enviar_trama(conexion, self.crear_mensaje_control("ACK", "", "0" * 64, 0))
+        elif mensaje["operacion"] == "CREATE" and self.carpeta_autorizada is not None:
+            from .transferencia import recibir_archivo
+            recibir_archivo(conexion, mensaje, self.carpeta_autorizada)
+            self.enviar_trama(conexion, self.crear_mensaje_control("ACK", "", "0" * 64, 0))
+        else:
+            raise ValueError("Operación no admitida o recepción deshabilitada.")
 
     def servir(self, detener=None, listo=None) -> None:
         """Escucha conexiones hasta activar el evento opcional detener."""
@@ -120,8 +126,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Servidor TCP LocalSync PING/ACK")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
+    parser.add_argument("--directory", default=None, help="Carpeta autorizada para recibir archivos")
     args = parser.parse_args()
-    nodo = NodoP2PTCP(args.host, args.port)
+    nodo = NodoP2PTCP(args.host, args.port, args.directory)
     print(f"[LocalSync] Servidor TCP escuchando en {args.host}:{args.port}", flush=True)
     try:
         nodo.servir()
