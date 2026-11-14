@@ -1,10 +1,4 @@
-"""
-Módulo Network: Definición del protocolo de mensajes P2P sobre Sockets TCP en Red LAN.
-Proyecto: LocalSync - Sistemas Operativos (Grupo G1)
-Integrantes Oficiales:
-  - Valery Michell Herrera Roca
-  - Daniel Felipe Rojas Gonzales
-"""
+""" Definición del protocolo de mensajes P2P sobre Sockets TCP en Red LAN. """
 import json
 import socket
 import struct
