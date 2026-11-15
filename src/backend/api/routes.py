@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from config.settings import DEFAULT_DB_PATH, SCHEMA_SQL_PATH, P2P_PORT, MODO_DEMOSTRACION
 from src.backend.core.engine import MotorSincronizacionLocal
 from src.backend.storage.db_manager import GestorBaseDatosLocal
+from src.backend.api.p2p_routes import router as p2p_router
 
 app = FastAPI(
     title="LocalSync Local Control API (Prototipo Fase 1)",
@@ -24,6 +25,8 @@ app = FastAPI(
     ),
     version="0.1.0-fase1",
 )
+
+app.include_router(p2p_router)
 
 motor_local = MotorSincronizacionLocal()
 gestor_bd = GestorBaseDatosLocal(DEFAULT_DB_PATH)
