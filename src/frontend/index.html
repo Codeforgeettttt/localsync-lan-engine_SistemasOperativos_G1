@@ -62,6 +62,20 @@
                 <li><strong>[MÓDULO REAL VERIFICADO]</strong> Validador SHA-256 y protección anti-Path Traversal operativos en <code>src/backend/core/engine.py</code>.</li>
             </ul>
         </section>
+        <section class="card">
+            <h2>4. Transferencia TCP real (prueba local)</h2>
+            <p>El servidor TCP debe ejecutarse por separado en 127.0.0.1:9001. Solo se pueden enviar archivos colocados en <code>archivos_para_enviar</code>. Esta función no usa TLS ni autenticación; úsala únicamente en localhost.</p>
+            <div class="actions">
+                <button id="btnP2pCheck" class="secondary">Comprobar servidor TCP</button>
+            </div>
+            <p id="p2pStatus" class="feedback-msg">Conexión no comprobada.</p>
+            <label for="p2pFilename">Nombre del archivo (incluye extensión):</label>
+            <input id="p2pFilename" type="text" placeholder="Archivo de prueba.txt" maxlength="255">
+            <div class="actions">
+                <button id="btnP2pSend" class="primary">Enviar archivo por TCP</button>
+            </div>
+            <p id="p2pFeedback" class="feedback-msg">Sin transferencias iniciadas.</p>
+        </section>
     </main>
 
     <script src="/static/js/app.js"></script>
