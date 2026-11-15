@@ -6,6 +6,7 @@ Integrantes Oficiales:
   - Daniel Felipe Rojas Gonzales
 """
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 from typing import Dict, Any
 
@@ -26,7 +27,7 @@ class GestorBaseDatosLocal:
         if not ruta_sql.exists():
             raise FileNotFoundError(f"No se encontró el archivo de esquema SQL: {ruta_sql}")
         script = ruta_sql.read_text(encoding="utf-8")
-        with self._conectar() as conn:
+        with closing(self._conectar()) as conn, conn:
             conn.executescript(script)
             conn.commit()
 
@@ -36,7 +37,7 @@ class GestorBaseDatosLocal:
         alias_carpeta: str,
         permisos_posix: str = "0750",
     ) -> int:
-        with self._conectar() as conn:
+        with closing(self._conectar()) as conn, conn:
             cursor = conn.execute(
                 """
                 INSERT INTO carpetas_autorizadas (ruta_absoluta_linux, alias_carpeta, permisos_posix)
@@ -57,7 +58,7 @@ class GestorBaseDatosLocal:
         estado_actual: str = "SINCRONIZADO",
         es_tombstone: int = 0,
     ) -> int:
-        with self._conectar() as conn:
+        with closing(self._conectar()) as conn, conn:
             cursor = conn.execute(
                 """
                 INSERT INTO archivos_sincronizados (
@@ -87,7 +88,7 @@ class GestorBaseDatosLocal:
                 "conteo_registros": {},
             }
         try:
-            with self._conectar() as conn:
+            with closing(self._conectar()) as conn, conn:
                 tablas_rows = conn.execute(
                     "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name;"
                 ).fetchall()
