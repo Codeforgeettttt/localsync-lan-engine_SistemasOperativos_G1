@@ -76,7 +76,7 @@ def comprobar_conexion(host: str, puerto: int = DEFAULT_PORT, timeout: float = 3
     _validar_destino(host, puerto, timeout)
     protocolo = NodoP2PTCP(host="127.0.0.1", port=puerto)
     with _conectar(host, puerto, timeout, tls_ca, tls_server_name) as conexion:
-        _autenticar(conexion, protocolo, auth_token)
+        _autenticar(conexion, protocolo, auth_token if auth_token is not None else os.getenv("LOCALSYNC_AUTH_TOKEN"))
         protocolo.enviar_trama(conexion, protocolo.crear_mensaje_control("PING", "", "0" * 64, 0))
         _validar_ack(protocolo, conexion)
     return True
@@ -108,7 +108,7 @@ def enviar_archivo(ruta_archivo: str | Path, host: str, puerto: int = DEFAULT_PO
     for intento in range(reintentos + 1):
         try:
             with _conectar(host, puerto, timeout, tls_ca, tls_server_name) as conexion:
-                _autenticar(conexion, protocolo, auth_token)
+                _autenticar(conexion, protocolo, auth_token if auth_token is not None else os.getenv("LOCALSYNC_AUTH_TOKEN"))
                 protocolo.enviar_trama(conexion, cabecera)
                 with ruta.open("rb") as origen:
                     while bloque := origen.read(65536):
