@@ -274,7 +274,12 @@ def iniciar_receptor(datos: InicioReceptor):
         if datos.modo_lan and (not token or len(token) < 16):
             raise HTTPException(400, "Para habilitar LAN configura un token compartido de al menos 16 caracteres.")
         try:
-            nodo = NodoP2PTCP(host, datos.puerto, RECIBIDOS, auth_token=token)
+            nodo = NodoP2PTCP(
+                host, datos.puerto, RECIBIDOS, auth_token=token,
+                on_received=lambda destino, msg: _evento(
+                    "RECEPCION_OK",
+                    f"{destino.name} · {msg['tamano_bytes']} bytes · SHA-256 {msg['hash_sha256'][:16]}…"),
+            )
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
         detener, listo = threading.Event(), threading.Event()
