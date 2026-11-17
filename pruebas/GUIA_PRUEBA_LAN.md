@@ -1,94 +1,178 @@
-# Prueba LAN de dos equipos — LocalSync (Fase II)
+# Auditoría LocalSync — Transferencia P2P en LAN (Valery)
 
-**Responsable técnico:** Valery Michell Herrera Roca  
-**Objetivo:** demostrar transferencia TCP manual entre dos computadores de la misma red local, con confirmación ACK e integridad SHA-256.  
-**Alcance:** esta demostración **no equivale** todavía a sincronización automática bidireccional, autenticación ni TLS.
+**Objetivo:** comprobar envío manual A→B y B→A, archivos y carpetas, integridad SHA-256, autenticación y recuperación básica por reintentos.  
+**Alcance honesto:** no hay sincronización automática con Watchdog, propagación de DELETE/MODIFY, TLS obligatorio, reanudación por bloques ni cola persistente.
 
-## Preparación (en ambos equipos Ubuntu)
+## 0. Preparación en ambos equipos Ubuntu
 
-1. Conectar ambos computadores a la **misma LAN confiable**.
-2. Clonar el repositorio y ubicarse en su raíz.
-3. Instalar Python 3.10+ y, si se van a ejecutar todas las pruebas, las dependencias:
+Desde la raíz del repositorio en la rama de Valery (o en main después de fusionar el PR):
 
-```bash
+\`\`\`bash
+git fetch origin feature/motor-p2p-pruebas
+git switch feature/motor-p2p-pruebas
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-```
+python -m pip install -r requirements.txt
+hostname -I
+\`\`\`
 
-4. Consultar la IP local de cada equipo: `hostname -I`. Anotar `IP_A` e `IP_B`.
-5. Comprobar conectividad: desde A, `ping -c 4 IP_B`; desde B, `ping -c 4 IP_A`.
-6. Si UFW está habilitado, abrir el puerto 9001 **solo para la IP del otro computador**, por ejemplo: `sudo ufw allow from IP_B to any port 9001 proto tcp` (adaptar la IP en cada equipo).
+Ambos equipos deben estar en la **misma red LAN confiable**. Anota IP_A e IP_B.
+Comprueba la red: desde A \`ping -c 4 IP_B\` y desde B \`ping -c 4 IP_A\`.
 
-## 1. Iniciar un receptor en ambos equipos
+Para el firewall del receptor, si UFW está activo, permite el puerto solo desde la IP del otro equipo:
 
-Crear una carpeta receptora y abrir una terminal **independiente** en cada equipo:
+\`\`\`bash
+sudo ufw allow from IP_DEL_OTRO_EQUIPO to any port 9001 proto tcp
+\`\`\`
 
-```bash
+**Autenticación (obligatoria por defecto cuando el servidor escucha fuera de localhost):**
+genera una sola clave en uno de los equipos con \`openssl rand -hex 32\` y compártela
+de forma privada con el otro integrante. En **cada terminal** que use servidor o
+cliente, introduce esa **misma** clave sin escribirla en el comando:
+
+\`\`\`bash
+read -rs -p "Clave compartida LocalSync: " LOCALSYNC_AUTH_TOKEN; echo
+export LOCALSYNC_AUTH_TOKEN
+\`\`\`
+
+No publiques el token en GitHub ni lo muestres en capturas. El reto HMAC verifica que ambos nodos conocen la clave; **por sí solo no cifra el archivo** (ver TLS).
+
+## 1. Servidor receptor (en B, luego también en A)
+
+\`\`\`bash
 mkdir -p archivos_recibidos
-python3 -m src.backend.network.p2p_socket --host 0.0.0.0 --port 9001 --directory archivos_recibidos
-```
+python3 -m src.backend.network.p2p_socket \
+  --host 0.0.0.0 --port 9001 --directory archivos_recibidos \
+  --on-conflict keep-both
+\`\`\`
 
-Mantener esa terminal abierta. El receptor mostrará una línea `[RECEPCION_OK]` cuando termine y compruebe un archivo.
+Aparecerá \`[SERVIDOR_LISTO]\`. Al completarse un envío, aparecerá
+\`[RECEPCION_OK]\` con nombre, tamaño y SHA-256.
+Deja el servidor abierto. Para que ambos equipos reciban archivos, inicia
+un receptor idéntico en el otro equipo (terminal independiente).
 
-## 2. Envío de A hacia B
+## 2. Enviar un archivo desde A hacia B
 
-En otra terminal del equipo A:
+En A (en otra terminal, con la misma clave configurada):
 
-```bash
+\`\`\`bash
 mkdir -p archivos_para_enviar
-printf 'Prueba LocalSync: A hacia B\n' > archivos_para_enviar/prueba_A.txt
-python3 -m src.backend.network.cliente_tcp --host IP_B --port 9001 --file archivos_para_enviar/prueba_A.txt
+printf 'Prueba LocalSync A hacia B\n' > archivos_para_enviar/prueba_A.txt
+python3 -m src.backend.network.cliente_tcp --host IP_B --port 9001
+python3 -m src.backend.network.cliente_tcp \
+  --host IP_B --port 9001 --file archivos_para_enviar/prueba_A.txt
 sha256sum archivos_para_enviar/prueba_A.txt
-```
+\`\`\`
 
-En el equipo B, comprobar que se recibió:
+En B:
 
-```bash
+\`\`\`bash
 ls -lah archivos_recibidos
 sha256sum archivos_recibidos/prueba_A.txt
-```
+\`\`\`
 
-**Criterio de aceptación:** emisor muestra `ACK recibido`, receptor muestra `RECEPCION_OK`, y los dos hashes SHA-256 coinciden.
+Criterio de aceptación: \`ACK recibido\` en A, \`RECEPCION_OK\` en B y hash idéntico.
 
-## 3. Envío de B hacia A
+## 3. Enviar en el sentido contrario B → A
 
-Desde el equipo B, en otra terminal:
+En B (con receptor activo en A):
 
-```bash
+\`\`\`bash
 mkdir -p archivos_para_enviar
-printf 'Prueba LocalSync: B hacia A\n' > archivos_para_enviar/prueba_B.txt
-python3 -m src.backend.network.cliente_tcp --host IP_A --port 9001 --file archivos_para_enviar/prueba_B.txt
+printf 'Prueba LocalSync B hacia A\n' > archivos_para_enviar/prueba_B.txt
+python3 -m src.backend.network.cliente_tcp \
+  --host IP_A --port 9001 --file archivos_para_enviar/prueba_B.txt
 sha256sum archivos_para_enviar/prueba_B.txt
-```
+\`\`\`
+
+En A: \`sha256sum archivos_recibidos/prueba_B.txt\`.
+
+## 4. Enviar una carpeta, conservar subdirectorios y reintentar
 
 En A:
 
-```bash
-sha256sum archivos_recibidos/prueba_B.txt
-```
+\`\`\`bash
+mkdir -p muestra_local/subcarpeta
+printf 'Documento de prueba\n' > muestra_local/subcarpeta/documento.txt
+printf 'Otro archivo\n' > muestra_local/segundo.txt
+python3 -m src.backend.network.cliente_tcp \
+  --host IP_B --port 9001 --directory muestra_local \
+  --remote-prefix entregas --retries 2
+\`\`\`
 
-**Criterio de aceptación:** el equipo A recibe el archivo con el mismo SHA-256.
+En B quedarán \`archivos_recibidos/entregas/subcarpeta/documento.txt\` y
+\`archivos_recibidos/entregas/segundo.txt\`.
 
-## 4. Pruebas automatizadas
+**Conflictos:** si envías otro archivo con igual nombre pero contenido diferente,
+el receptor conservará el original y creará una copia \`.conflict-<hash>.ext\`.
+Si se envía dos veces un archivo idéntico, no se crean copias duplicadas.
+El servidor también admite \`--on-conflict reject\` o \`overwrite\`; para la auditoría utiliza **keep-both**.
 
-Desde la raíz del repositorio en al menos uno de los equipos:
+**Reintentos:** \`--retries 2\` repite el envío completo hasta dos veces después
+de fallos de conexión. No se reanuda desde el último byte recibido.
+El límite por archivo es **100 MiB**.
 
-```bash
-pytest -v
-pytest -v pruebas/test_dos_nodos_tcp.py
-```
+## 5. TLS opcional (cifrado de extremo a extremo)
 
-La nueva prueba `test_dos_nodos_tcp.py` crea dos nodos independientes sobre **localhost**, por lo que permite probar el intercambio manual en dos sentidos sin necesitar dos equipos físicos. No reemplaza la prueba LAN real.
+Para cifrar las transferencias, genera en el **receptor** un certificado de
+prueba para su **IP real**, por ejemplo, sustituye IP_B por la IP correcta:
 
-## Evidencias para presentar
+\`\`\`bash
+openssl req -x509 -newkey rsa:3072 -nodes \
+  -keyout servidor.key -out servidor.crt -days 7 \
+  -subj "/CN=LocalSync" -addext "subjectAltName=IP:IP_B"
+chmod 600 servidor.key
+\`\`\`
 
-- Captura de `hostname -I` en ambos equipos (se pueden ocultar datos que no sean relevantes).
-- Captura de conectividad entre A y B.
-- Captura de consola del receptor con `[RECEPCION_OK]`.
-- Captura de consola del cliente con `ACK recibido`.
-- Comparación de SHA-256 de origen y destino en cada dirección.
-- Captura de `pytest -v` con resultado real.
-- Si falla algo, registrar el error en lugar de reportar un éxito no verificado.
+Copia **solo** \`servidor.crt\` al emisor mediante un medio confiable y
+reinicia el servidor receptor con las opciones TLS añadidas:
 
-> **Seguridad:** el servidor TCP de este prototipo no autentica ni cifra conexiones. Usarlo solo en una LAN de prueba confiable y apagarlo al terminar (Ctrl+C). No abrir el puerto 9001 hacia Internet.
+\`\`\`bash
+python3 -m src.backend.network.p2p_socket \
+  --host 0.0.0.0 --port 9001 --directory archivos_recibidos \
+  --tls-cert servidor.crt --tls-key servidor.key
+\`\`\`
+
+En el emisor añade \`--tls-ca servidor.crt\` al comando del cliente. La IP usada
+con \`--host\` debe coincidir con el SAN del certificado. **No utilices
+\`--insecure\` para saltarte la verificación.** Para operar en ambos sentidos
+con TLS, cada receptor necesita su propio certificado.
+
+## 6. Pruebas y evidencias que deben quedar listas
+
+\`\`\`bash
+python -m pytest -v
+python -m pytest -v pruebas/test_lan_completo.py
+\`\`\`
+
+Captura:
+1. IP local de ambos equipos y comunicación \`ping\`.
+2. \`[SERVIDOR_LISTO]\` del receptor y \`[RECEPCION_OK]\`.
+3. \`ACK recibido\` y resultado de SHA-256 en ambos lados.
+4. Envío B→A y carpeta con un subdirectorio.
+5. \`pytest -v\` y ejecución correcta de GitHub Actions.
+6. Prueba de conflicto que conserve ambos archivos.
+
+**Seguridad:** compartir las credenciales por canal privado, mantener el puerto
+9001 restringido a la LAN, detener con Ctrl+C al acabar. HMAC sin TLS **no**
+protege la confidencialidad. No dejar la demo expuesta a Internet.
+
+## 7. Linux con systemd (opcional para reforzar Sistemas Operativos)
+
+Se incluye \`recursos/systemd/localsync-tcp.service\` para ejecutar el
+receptor como servicio independiente de FastAPI. Antes de usarlo hay que crear
+el usuario de servicio, el entorno virtual en \`/opt/localsync\`, la carpeta
+\`/var/lib/localsync/recibidos\` y un archivo de entorno root-only en
+\`/etc/localsync/localsync.env\` con la clave compartida. **No** usar la unidad
+sin adaptar estas rutas al entorno real. Se adjunta el servicio como plantilla,
+no como demostración de que ya está instalado.
+
+\`\`\`bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now localsync-tcp
+sudo systemctl status localsync-tcp --no-pager
+sudo journalctl -u localsync-tcp -n 40 --no-pager
+\`\`\`
+
+La API FastAPI existente es otro proceso: \`localsync.service\` **no**
+inicia automáticamente el receptor TCP.
