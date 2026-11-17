@@ -81,13 +81,18 @@ Desarrollar y evaluar una aplicación web para Linux con arquitectura P2P que pe
 
 ---
 
-## 🔍 . Estado Actual Real del Proyecto (Transparencia Técnica — Entrega 1)
+## 7. Estado actual de integración
 
-| Categoría de Estado | Componentes del Proyecto | Detalle de Verificación Real |
-| :--- | :--- | :--- |
-| **🟢 1. Implementado y Comprobado (Fase 1)** | • Esquema de Base de Datos SQLite (`src/bd/schema.sql`)<br>• Gestor SQLite (`src/backend/storage/db_manager.py`)<br>• Cálculo de Hash SHA-256 (`calcular_sha256`)<br>• Validador Anti-Path Traversal (`validar_ruta_segura`)<br>• Serializador de Mensajes P2P (`NodoP2PTCP`)<br>• API REST Local (`src/backend/api/routes.py`)<br>• Suite de Pruebas (`pruebas/test_integridad_y_rutas.py`) | Compilados en Python, validados con creación real de tablas e índices en SQLite (incluyendo `UNIQUE(id_carpeta, ruta_relativa)`) y comprobados mediante pruebas automatizadas. |
-| **🟡 2. Estructurado (Parcial / En Integración)** | • Interfaz Web Local (`src/frontend/index.html`, `css`, `js`)<br>• Clase `MotorSincronizacionLocal` (`engine.py`)<br>• Unidad `systemd` (`recursos/systemd/localsync.service`) | La UI consulta `/api/estado` e identifica explícitamente los datos de demostración (`[DATO SIMULADO - DEMO UI]`). El archivo `localsync.service` inicia actualmente la API `FastAPI` con `Uvicorn`. |
-| **⚪ 3. Planificado para Próximas Fases (Fases 2 a 8)** | • Transporte de red bidireccional por Sockets TCP (Fase 3)<br>• Monitoreo en vivo con `Watchdog` / `inotify` (Fase 4)<br>• Reconciliación de conflictos y *tombstones* (Fase 5)<br>• Canal cifrado TLS y autenticación de red (Fase 7) | Documentados en la arquitectura y diagramas como componentes propuestos del cronograma semestral; aún no ejecutan transferencias reales por red. |
+| Componente | Estado |
+| --- | --- |
+| TCP manual, SHA-256, rutas seguras | Implementados; prueba local Windows reportada |
+| API y panel web | Integración local probada antes de esta rama; cambios nuevos pendientes de repetir pruebas |
+| IP y puerto configurables | Implementados en esta rama; pendiente validación entre equipos |
+| SQLite | Esquema y gestor implementados; historial de transferencias no integrado |
+| Watchdog, reconciliación, TLS y autenticación | Pendientes |
+| Ubuntu y servicio systemd | Pendientes de validación experimental |
+
+La transferencia manual no equivale a sincronización automática. Consulta la [guía de integración](documentacion/integracion_api_frontend.md).
 
 ---
 
@@ -108,18 +113,18 @@ Desarrollar y evaluar una aplicación web para Linux con arquitectura P2P que pe
 
 ##  9. Tecnologías Utilizadas y Previstas
 
-| Componente | Tecnología | Estado en Entrega 1 | Función en el Sistema |
+| Componente | Tecnología | Estado actual | Función en el Sistema |
 | :--- | :--- | :--- | :--- |
 | **Sistema Operativo** | `Ubuntu Linux` | Definido | Entorno de ejecución, permisos POSIX y red local. |
-| **Lenguaje / Motor** | `Python 3.10+` | Implementado (Base) | Lógica de integridad SHA-256, validación de rutas y protocolos. |
-| **API Local** | `FastAPI 0.115.0` | Implementado | Expone `/api/estado`, `/api/inicializar-bd` y `/api/control/pausa`. |
+| **Lenguaje / Motor** | `Python 3.12 recomendado` | Implementado (Base) | Lógica de integridad SHA-256, validación de rutas y protocolos. |
+| **API Local** | `FastAPI 0.115.0` | Implementado | Expone estado, inicialización SQLite, bandera de pausa y operaciones P2P. |
 | **Servidor ASGI** | `Uvicorn 0.30.6` | Implementado | Ejecuta la API local en `127.0.0.1:8080`. |
-| **Interfaz Web** | `HTML5 / CSS3 / JS` | Estructurado | Panel web local con separación entre datos reales y simulados. |
+| **Interfaz Web** | `HTML5 / CSS3 / JS` | En integración | Panel local con diagnóstico y transferencia manual. |
 | **Base de Datos** | `SQLite 3` | Implementado | Persistencia de las 6 tablas con `FOREIGN KEY` y `UNIQUE(id_carpeta, ruta_relativa)`. |
 | **Integridad** | `SHA-256 (hashlib)` | Implementado | Verificación criptográfica de archivos por bloques de 64 KB. |
 | **Pruebas** | `pytest 8.3.3` | Implementado | Validación automatizada de módulos, base de datos y API. |
 | **Servicio Linux** | `systemd` | Configurado (API) | Unidad de servicio para iniciar la API local con privilegios mínimos. |
-| **Comunicación P2P** | `Sockets TCP` | Planificado (Fase 3) | Serialización JSON implementada; transporte de red en Fase 3. |
+| **Comunicación P2P** | `Sockets TCP` | Implementado (manual) | Transferencia TCP y confirmación ACK; LAN pendiente de verificar. |
 | **Monitoreo FS** | `Watchdog 5.0.2` | Planificado (Fase 4) | Dependencia declarada; integración con eventos de disco en Fase 4. |
 | **Seguridad Red** | `TLS (ssl)` | Planificado (Fase 7) | Canal cifrado punto a punto entre nodos autorizados. |
 
@@ -224,7 +229,7 @@ uvicorn src.backend.api.routes:app --host 127.0.0.1 --port 8080
 
 ##  12. Cronograma y Próximos Pasos (Plan de 8 Fases)
 
-1. **Fase 1 (Semana 1) — Investigación, Diseño y Estructuración [ESTADO ACTUAL]**
+1. **Fase 1 (Semana 1) — Investigación, Diseño y Estructuración [BASE IMPLEMENTADA]**
 2. **Fase 2 (Semana 2) — Entorno Linux LAN**
 3. **Fase 3 (Semana 3) — Red P2P por Sockets TCP**
 4. **Fase 4 (Semana 4) — Motor de Sincronización (`Watchdog`)**
