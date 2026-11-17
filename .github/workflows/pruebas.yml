@@ -25,3 +25,17 @@ jobs:
           python -m pip install -r requirements.txt
       - name: Ejecutar pruebas automatizadas
         run: python -m pytest -v
+
+  laboratorio-docker-dos-nodos:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Obtener código
+        uses: actions/checkout@v4
+      - name: Configurar Python para el controlador de la demo
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Verificar Docker Compose
+        run: docker compose version
+      - name: Simular dos Linux y validar transferencias TCP LAN
+        run: python simulacion/demo.py --cleanup-after
