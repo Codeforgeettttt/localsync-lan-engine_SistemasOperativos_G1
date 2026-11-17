@@ -90,8 +90,13 @@ class NodoP2PTCP:
             self.enviar_trama(conexion, self.crear_mensaje_control("ACK", "", "0" * 64, 0))
         elif mensaje["operacion"] == "CREATE" and self.carpeta_autorizada is not None:
             from .transferencia import recibir_archivo
-            recibir_archivo(conexion, mensaje, self.carpeta_autorizada)
+            destino = recibir_archivo(conexion, mensaje, self.carpeta_autorizada)
             self.enviar_trama(conexion, self.crear_mensaje_control("ACK", "", "0" * 64, 0))
+            print(
+                f"[LocalSync][RECEPCION_OK] archivo={destino.name!r} "
+                f"bytes={mensaje['tamano_bytes']} sha256={mensaje['hash_sha256']}",
+                flush=True,
+            )
         else:
             raise ValueError("Operación no admitida o recepción deshabilitada.")
 
