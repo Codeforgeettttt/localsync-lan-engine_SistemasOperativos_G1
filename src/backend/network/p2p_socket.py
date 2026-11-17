@@ -43,7 +43,7 @@ class NodoP2PTCP:
                  carpeta_autorizada=None, *, auth_token: str | None = None,
                  insecure_lan: bool = False, tls_cert: str | None = None,
                  tls_key: str | None = None, on_conflict: str = "keep-both",
-                 max_workers: int = 8) -> None:
+                 max_workers: int = 8, on_received=None) -> None:
         if not (1024 <= int(port) <= 65535):
             raise ValueError("El puerto TCP debe estar entre 1024 y 65535.")
         if (tls_cert is None) != (tls_key is None):
@@ -65,6 +65,7 @@ class NodoP2PTCP:
         self.tls_key = tls_key
         self.on_conflict = on_conflict
         self.max_workers = max_workers
+        self.on_received = on_received
         self.transporte_tcp_activo = False
         self.tls_activo = bool(tls_cert)
 
@@ -163,6 +164,12 @@ class NodoP2PTCP:
             ))
             print(f"[LocalSync][RECEPCION_OK] archivo={destino.name!r} "
                   f"bytes={mensaje['tamano_bytes']} sha256={mensaje['hash_sha256']}", flush=True)
+            if self.on_received is not None:
+                try:
+                    self.on_received(destino, mensaje)
+                except Exception as exc:
+                    # El archivo ya fue confirmado y no debe fallar por problemas del panel.
+                    print(f"[LocalSync][EVENTO_ERROR] {type(exc).__name__}", flush=True)
         else:
             raise ValueError("Operación no admitida o recepción deshabilitada.")
 
