@@ -59,8 +59,13 @@
             </ul>
         </section>
         <section class="card">
-            <h2>4. Transferencia TCP real (prueba local)</h2>
-            <p>El servidor TCP debe ejecutarse por separado en 127.0.0.1:9001. Solo se pueden enviar archivos colocados en <code>archivos_para_enviar (carpeta a crear en la carpeta descomprimida)</code>. Esta función no usa TLS ni autenticación; úsala únicamente en localhost.</p>
+            <h2>4. Transferencia TCP real</h2>
+            <p>El servidor TCP se inicia por separado. Usa localhost por defecto; para un par LAN privado se requiere autorización en LOCALSYNC_PAR_LAN. Sin TLS ni autenticación: utiliza solo un entorno de pruebas aislado.</p>
+            <label for="p2pHost">IPv4 del nodo</label>
+            <input id="p2pHost" value="127.0.0.1" required>
+            <label for="p2pPort">Puerto TCP</label>
+            <input id="p2pPort" type="number" min="1024" max="65535" value="9001" required>
+            <p>Archivos de origen: <code>archivos_para_enviar</code>.</p>
             <div class="actions">
                 <button id="btnP2pCheck" class="secondary">Comprobar servidor TCP</button>
             </div>
