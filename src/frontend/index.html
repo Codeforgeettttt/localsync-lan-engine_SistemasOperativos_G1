@@ -1,84 +1,135 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LocalSync | Panel Web Local (Prototipo Fase 1 - Grupo G1)</title>
-    <link rel="stylesheet" href="/static/css/styles.css">
-    <link rel="stylesheet" href="css/styles.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#081422">
+  <meta name="description" content="LocalSync LAN: transferencias de archivos, control P2P y laboratorio virtual con dos nodos Linux.">
+  <title>LocalSync — Centro de control LAN</title>
+  <link rel="stylesheet" href="/static/css/styles.css">
+  <script defer src="/static/js/app.js"></script>
 </head>
 <body>
-    <header class="topbar">
-        <div>
-            <h1>LOCALSYNC <span class="badge">Grupo G1 | Sistemas Operativos</span></h1>
-            <p>Prototipo de Sincronización P2P de Archivos en Red Local (Ubuntu Linux)</p>
-            <p class="authors"><strong>Integrantes:</strong> Valery Michell Herrera Roca &bull; Daniel Felipe Rojas Gonzalez</p>
-        </div>
-        <div class="status-box">
-            <span class="dot warning"></span>
-            Estado del Proyecto: <strong>Fase 1 (Estructuración y Base Verificable)</strong>
-        </div>
-    </header>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Menú principal">
+      <a class="brand" href="/" aria-label="LocalSync inicio">
+        <span class="brand-logo" aria-hidden="true"><span class="brand-signal"></span>↔</span>
+        <span><strong>LocalSync</strong><small>LAN ENGINE</small></span>
+      </a>
+      <div class="sidebar-label">ESPACIO DE TRABAJO</div>
+      <nav class="nav">
+        <button class="nav-item active" data-nav="resumen" aria-current="page"><span class="nav-icon" aria-hidden="true">◫</span> Resumen <span class="nav-key">01</span></button>
+        <button class="nav-item" data-nav="transferir"><span class="nav-icon" aria-hidden="true">⇄</span> Transferencias <span class="nav-key">02</span></button>
+        <button class="nav-item" data-nav="laboratorio"><span class="nav-icon" aria-hidden="true">⌘</span> Laboratorio virtual <span class="nav-key">03</span></button>
+        <button class="nav-item" data-nav="actividad"><span class="nav-icon" aria-hidden="true">☷</span> Actividad <span class="nav-key">04</span></button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="side-status"><span class="pulse-dot" id="sidebarDot"></span><div><strong id="sidebarState">Conectando...</strong><small>Motor de transferencia TCP</small></div></div>
+        <div class="sidebar-foot">UNIVERSIDAD MANUELA BELTRÁN<br>INGENIERÍA DE SOFTWARE · G1<br><span>Valery Herrera · Daniel Rojas</span></div>
+      </div>
+    </aside>
 
-    <div class="demo-banner">
-        <strong>AVISO DE TRANSPARENCIA TÉCNICA (FASE 1):</strong>
-        Esta interfaz muestra la estructura del panel de control local conectada a la API <code>FastAPI</code>.
-        El esquema <code>SQLite 3</code>, el cálculo de integridad <code>SHA-256</code> y la validación de rutas están
-        <strong>implementados y probados</strong>. El transporte por <code>Sockets TCP</code>, el cifrado <code>TLS</code> y
-        el monitoreo en tiempo real con <code>Watchdog</code> se encuentran <strong>planificados para las Fases 3 a 7</strong>.
+    <div class="main-column">
+      <header class="topbar">
+        <div class="topbar-left"><button class="mobile-menu" id="menuToggle" type="button" aria-label="Abrir menú">☰</button><span class="breadcrumb">LocalSync <span>/</span> <strong id="breadcrumbSection">Resumen</strong></span></div>
+        <div class="topbar-right"><span class="version-pill">● PROTOTIPO OPERATIVO</span><span class="topbar-time" id="localClock">--:--</span><span class="avatar">LS</span></div>
+      </header>
+
+      <main id="mainContent">
+        <section class="view" data-view="resumen">
+          <div class="page-heading">
+            <div><div class="eyebrow"><span class="tiny-line"></span> CENTRO DE OPERACIONES</div><h1>Tu red, bajo control.</h1><p>Gestiona transferencias directas y comprueba el motor P2P desde un solo lugar.</p></div>
+            <button class="btn btn-outline" id="refreshAll">↻ &nbsp;Actualizar estado</button>
+          </div>
+          <div class="stats-grid">
+            <article class="stat-card"><div class="stat-label">Estado del receptor <span>◉</span></div><div class="stat-value" id="statReceiver">Consultando</div><div class="stat-foot" id="statReceiverDetail">Puerto TCP local</div></article>
+            <article class="stat-card"><div class="stat-label">Archivos preparados <span>⇧</span></div><div class="stat-value" id="statQueue">0</div><div class="stat-foot">Listos para enviar</div></article>
+            <article class="stat-card"><div class="stat-label">Archivos recibidos <span>⇩</span></div><div class="stat-value" id="statReceived">0</div><div class="stat-foot">En almacenamiento local</div></article>
+            <article class="stat-card"><div class="stat-label">Prueba virtual <span>⌘</span></div><div class="stat-value small" id="statDemo">Sin ejecutar</div><div class="stat-foot">Dos nodos Linux aislados</div></article>
+          </div>
+          <div class="overview-grid">
+            <article class="panel network-panel">
+              <div class="panel-head"><div><div class="eyebrow">ARQUITECTURA</div><h2>Comunicación entre nodos</h2></div><span class="tag muted">TCP · PUERTO 9001</span></div>
+              <div class="topology">
+                <div class="device"><div class="device-icon">▣</div><strong>Este equipo</strong><small id="topologyLocal">Receptor local</small><span class="device-badge" id="topologyLocalState">En espera</span></div>
+                <div class="connection"><div class="line-dotted"></div><span class="arrow-bridge">⇄</span><div class="line-caption">SHA-256 · ACK</div></div>
+                <div class="device"><div class="device-icon alt">▣</div><strong>Nodo remoto</strong><small id="topologyRemote">127.0.0.1 : 9001</small><span class="device-badge blue">Red local</span></div>
+              </div>
+              <div class="network-note"><span>ⓘ</span> Los envíos reales son manuales. La sincronización automática y Watchdog siguen pendientes.</div>
+            </article>
+            <article class="panel quick-panel">
+              <div class="panel-head"><div><div class="eyebrow">ACCESOS RÁPIDOS</div><h2>¿Qué quieres hacer?</h2></div></div>
+              <button class="quick-action" data-jump="transferir"><span class="quick-symbol">⇧</span><span><strong>Enviar un archivo</strong><small>Preparar, conectar y transferir</small></span><span class="quick-arrow">↗</span></button>
+              <button class="quick-action" data-jump="laboratorio"><span class="quick-symbol violet">⌘</span><span><strong>Ejecutar simulación</strong><small>Dos contenedores en red privada</small></span><span class="quick-arrow">↗</span></button>
+              <button class="quick-action" data-jump="actividad"><span class="quick-symbol amber">☷</span><span><strong>Consultar eventos</strong><small>Resultados del motor local</small></span><span class="quick-arrow">↗</span></button>
+            </article>
+          </div>
+          <div class="panel method-panel"><div class="panel-head"><div><div class="eyebrow">PROCESO DE TRANSFERENCIA</div><h2>Simple, verificable y directo.</h2></div></div>
+            <div class="steps-grid"><div class="step"><span>01</span><h3>Prepara</h3><p>Carga archivos o carpetas en tu bandeja local.</p></div><div class="step"><span>02</span><h3>Conecta</h3><p>Inicia el receptor o verifica una IP de la LAN.</p></div><div class="step"><span>03</span><h3>Transfiere</h3><p>Envía por TCP con confirmación de recepción.</p></div><div class="step"><span>04</span><h3>Verifica</h3><p>Comprueba SHA-256 y conserva conflictos.</p></div></div>
+          </div>
+        </section>
+
+        <section class="view" data-view="transferir" hidden>
+          <div class="page-heading"><div><div class="eyebrow"><span class="tiny-line"></span> MOTOR P2P</div><h1>Transferencias LAN.</h1><p>Prepara archivos, configura el receptor y envía directamente a otro nodo.</p></div><span class="section-counter">ARCHIVOS · SHA-256 · ACK</span></div>
+          <div class="transfer-grid">
+            <article class="panel receiver-panel">
+              <div class="panel-head"><div><div class="eyebrow">ESTE EQUIPO</div><h2>Receptor TCP</h2></div><span id="receiverBadge" class="tag muted">APAGADO</span></div>
+              <p class="panel-description">Habilita la recepción de archivos en este computador. Para la red física utiliza el modo LAN con un token compartido.</p>
+              <div class="form-grid">
+                <label class="field"><span>Modo de escucha</span><select id="receiverMode"><option value="local">Solo este equipo · 127.0.0.1</option><option value="lan">Red local · 0.0.0.0</option></select></label>
+                <label class="field"><span>Puerto receptor</span><input id="receiverPort" type="number" min="1024" max="65535" value="9001"></label>
+              </div>
+              <div class="actions"><button class="btn btn-primary" id="startReceiver">● &nbsp;Iniciar receptor</button><button class="btn btn-outline" id="stopReceiver">Detener</button></div>
+              <div class="hint"><span>ⓘ</span> Para usar la LAN, genera un token abajo y configúralo también en el emisor.</div>
+            </article>
+            <article class="panel connection-panel">
+              <div class="panel-head"><div><div class="eyebrow">OTRO EQUIPO</div><h2>Conectar con un nodo</h2></div><span id="connectionBadge" class="tag muted">SIN PROBAR</span></div>
+              <div class="form-grid">
+                <label class="field"><span>IP del equipo receptor</span><input id="remoteHost" type="text" value="127.0.0.1" spellcheck="false" autocomplete="off" placeholder="192.168.1.15"></label>
+                <label class="field"><span>Puerto TCP</span><input id="remotePort" type="number" min="1024" max="65535" value="9001"></label>
+              </div>
+              <label class="field"><span>Token compartido (para LAN)</span><div class="input-action"><input id="sharedToken" type="password" placeholder="Mínimo 16 caracteres" autocomplete="off" spellcheck="false"><button type="button" id="toggleToken" aria-label="Mostrar token">◉</button><button type="button" id="newToken" title="Generar token seguro">Generar</button></div></label>
+              <div class="actions"><button class="btn btn-primary" id="checkConnection">↗ &nbsp;Comprobar conexión</button><button class="btn btn-outline" id="copyToken">Copiar token</button></div>
+              <p id="connectionMessage" class="inline-message" aria-live="polite">Ingresa la IP del receptor o prueba con 127.0.0.1.</p>
+            </article>
+          </div>
+          <div class="panel file-panel">
+            <div class="panel-head"><div><div class="eyebrow">BANDEJA DE ENVÍO</div><h2>Archivos preparados</h2><p class="panel-description">Puedes seleccionar archivos o carpetas completas. Hasta 100 MiB por archivo.</p></div><div class="head-actions"><label class="btn btn-outline upload-button">+ Archivos<input type="file" id="uploadFiles" multiple hidden></label><label class="btn btn-outline upload-button">▣ Carpeta<input type="file" id="uploadFolder" webkitdirectory directory multiple hidden></label></div></div>
+            <div class="dropzone" id="dropZone" role="button" tabindex="0" aria-label="Cargar archivos"><div class="drop-icon">⇧</div><strong>Arrastra tus archivos aquí</strong><small>O usa «Archivos» y «Carpeta» para seleccionarlos</small></div>
+            <div id="outgoingFiles" class="file-list"><div class="empty-state">Todavía no hay archivos preparados.</div></div>
+            <div class="file-toolbar"><div><small id="outgoingCount">0 archivos preparados</small></div><button class="btn btn-primary" id="sendAll">⇧ &nbsp;Enviar todos los archivos</button></div>
+          </div>
+          <div class="panel file-panel">
+            <div class="panel-head"><div><div class="eyebrow">BANDEJA DE RECEPCIÓN</div><h2>Archivos recibidos</h2></div><button class="btn btn-outline btn-small" id="refreshFiles">↻ Actualizar</button></div>
+            <div id="incomingFiles" class="file-list"><div class="empty-state">Los archivos recibidos aparecerán aquí.</div></div>
+          </div>
+        </section>
+
+        <section class="view" data-view="laboratorio" hidden>
+          <div class="page-heading"><div><div class="eyebrow"><span class="tiny-line"></span> ENTORNO DE PRUEBAS</div><h1>Laboratorio virtual.</h1><p>Dos nodos Linux reales en contenedores independientes, unidos por una LAN privada.</p></div><span class="section-counter">DOCKER COMPOSE</span></div>
+          <div class="lab-hero">
+            <div class="lab-copy"><span class="lab-pill">◉ PRUEBA REPRODUCIBLE</span><h2>Dos equipos.<br><em>Una sola simulación.</em></h2><p>El sistema inicia dos nodos, autentica conexiones TCP y verifica archivos, carpetas, hashes y conflictos en ambos sentidos.</p><div class="actions"><button class="btn btn-light" id="runSimulation">▶ &nbsp;Ejecutar simulación completa</button><button class="btn btn-glass" id="cleanupSimulation">Limpiar laboratorio</button></div></div>
+            <div class="lab-graphic" aria-label="Nodo A intercambia archivos con Nodo B"><div class="lab-node"><div class="lab-monitor">▣</div><strong>NODO A</strong><small>Linux · TCP :9001</small></div><div class="lab-wire"><span>⇄</span><small>LAN virtual</small></div><div class="lab-node"><div class="lab-monitor">▣</div><strong>NODO B</strong><small>Linux · TCP :9001</small></div></div>
+          </div>
+          <div class="lab-status-row"><div><div class="eyebrow">RESULTADO DEL LABORATORIO</div><div class="lab-result"><strong id="labResult">Sin ejecutar</strong><span id="labStateDescription">Ejecuta la prueba para obtener resultados verificados.</span></div></div><span id="labBadge" class="tag muted">SIN EJECUTAR</span></div>
+          <div class="progress-track" aria-label="Progreso de la simulación"><span id="labProgress" style="width:0%"></span></div>
+          <div class="lab-test-grid">
+            <div class="test-chip" data-test="1">1 <span>Crear nodos Linux</span></div><div class="test-chip" data-test="2">2 <span>Conexión autenticada</span></div><div class="test-chip" data-test="3">3 <span>Transferencia A → B</span></div><div class="test-chip" data-test="4">4 <span>Transferencia B → A</span></div><div class="test-chip" data-test="5">5 <span>Envío de carpetas</span></div><div class="test-chip" data-test="6">6 <span>Conflictos y versiones</span></div>
+          </div>
+          <div class="panel terminal-panel"><div class="terminal-top"><span class="terminal-dots">● ● ●</span><strong>localSync · auditoria_virtual.log</strong><a id="downloadEvidence" class="terminal-download" href="/api/lan/simulacion/evidencia" download>↓ Descargar evidencia</a></div><pre id="labLog" class="terminal-output" aria-live="polite">Esperando una simulación.
+Para comenzar, pulsa «Ejecutar simulación completa».</pre></div>
+          <div class="notice"><span>ⓘ</span><p><strong>¿Qué se está comprobando?</strong> Es transferencia real entre contenedores Linux en una red privada de Docker, no una animación. La prueba no sustituye instalar y verificar <code>systemd</code> en una máquina Ubuntu ni probar dos computadores físicos.</p></div>
+        </section>
+
+        <section class="view" data-view="actividad" hidden>
+          <div class="page-heading"><div><div class="eyebrow"><span class="tiny-line"></span> EVIDENCIAS DEL MOTOR</div><h1>Actividad reciente.</h1><p>Eventos registrados en esta sesión local de la aplicación.</p></div><button class="btn btn-outline" id="refreshHistory">↻ &nbsp;Actualizar</button></div>
+          <article class="panel"><div class="panel-head"><div><div class="eyebrow">REGISTRO EN VIVO</div><h2>Historial de operaciones</h2></div><span class="tag muted">ÚLTIMOS 60 EVENTOS</span></div><div id="historyList" class="event-list"><div class="empty-state">Los eventos de conexión, recepción y transferencia aparecerán aquí.</div></div></article>
+          <div class="panel transparent-panel"><div class="eyebrow">ALCANCE TÉCNICO</div><h2>Información transparente</h2><p>LocalSync tiene transporte TCP manual, SHA-256, HMAC, TLS opcional, pruebas automatizadas y simulación Docker. La detección de cambios con Watchdog, la cola de reintentos persistente y la sincronización automática bidireccional continúan pendientes. No se representan datos ficticios como transferencias reales.</p></div>
+        </section>
+      </main>
+      <footer class="footer"><span>LocalSync · Sistemas Operativos · Grupo G1</span><span>Motor TCP manual · laboratorio virtual verificable</span></footer>
     </div>
-
-    <main class="container">
-        <section class="card">
-            <h2>1. Estado Real de Componentes (Consultado desde <code>/api/estado</code>)</h2>
-            <div id="apiStatusContainer" class="status-grid">
-                <p>Consultando endpoint <code>/api/estado</code> (si abres este archivo directamente sin iniciar Uvicorn, se mostrarán los indicadores estáticos de Fase 1)...</p>
-            </div>
-            <div class="actions">
-                <button id="btnRefresh" class="primary">Consultar /api/estado</button>
-                <button id="btnInitDb" class="secondary">Inicializar Esquema SQLite (/api/inicializar-bd)</button>
-            </div>
-        </section>
-
-        <section class="card">
-            <h2>2. Control de Sincronización Local (RF-12 - Estructura Inicial)</h2>
-            <p>
-                <strong>Alcance actual de los controles:</strong> Actualizan el estado de pausa en la instancia de la API local.
-                La conexión con el demonio <code>Watchdog</code> y los sockets TCP se integrará en las Fases 3 y 4.
-            </p>
-            <div class="actions">
-                <button id="btnPause">Marcar Estado: Pausado (En Memoria API)</button>
-                <button id="btnResume" class="primary">Marcar Estado: Activo (En Memoria API)</button>
-            </div>
-            <p id="controlFeedback" class="feedback-msg">Estado actual en API: Sin cambios enviados.</p>
-        </section>
-
-        <section class="card">
-            <h2>3. Vista Previa de Datos Simulados de Interfaz (Modo Demostración)</h2>
-            <p class="sim-tag">ETIQUETA EXPLÍCITA: DATOS SIMULADOS DE DEMOSTRACIÓN (NO REPRESENTAN TRANSFERENCIAS REALES)</p>
-            <ul id="eventList">
-                <li><strong>[DATO SIMULADO - DEMO UI]</strong> Nodo Par de Ejemplo: <code>192.168.10.22:9001</code> (Transporte TCP pendiente Fase 3).</li>
-                <li><strong>[DATO SIMULADO - DEMO UI]</strong> Directorio Ejemplo: <code>/home/ubuntu/LocalSync_Compartida</code> (Observador Watchdog pendiente Fase 4).</li>
-                <li><strong>[MÓDULO REAL VERIFICADO]</strong> Validador SHA-256 y protección anti-Path Traversal operativos en <code>src/backend/core/engine.py</code>.</li>
-            </ul>
-        </section>
-        <section class="card">
-            <h2>4. Transferencia TCP real (prueba local)</h2>
-            <p>El servidor TCP debe ejecutarse por separado en 127.0.0.1:9001. Solo se pueden enviar archivos colocados en <code>archivos_para_enviar (carpeta a crear en la carpeta descomprimida)</code>. Esta función no usa TLS ni autenticación; úsala únicamente en localhost.</p>
-            <div class="actions">
-                <button id="btnP2pCheck" class="secondary">Comprobar servidor TCP</button>
-            </div>
-            <p id="p2pStatus" class="feedback-msg">Conexión no comprobada.</p>
-            <label for="p2pFilename">Nombre del archivo (incluye extensión):</label>
-            <input id="p2pFilename" type="text" placeholder="Archivo de prueba.txt" maxlength="255">
-            <div class="actions">
-                <button id="btnP2pSend" class="primary">Enviar archivo por TCP</button>
-            </div>
-            <p id="p2pFeedback" class="feedback-msg">Sin transferencias iniciadas.</p>
-        </section>
-    </main>
-
-    <script src="/static/js/app.js"></script>
-    <script src="js/app.js"></script>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
 </body>
 </html>
