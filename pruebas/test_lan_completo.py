@@ -56,6 +56,17 @@ class TestMotorLANCompleto(unittest.TestCase):
         self.assertTrue(enviar_archivo(archivo, "127.0.0.1", nodo.port, auth_token=TOKEN))
         self.assertEqual((self.destino / archivo.name).read_bytes(), archivo.read_bytes())
 
+    def test_la_api_puede_heredar_el_token_de_entorno(self):
+        """Compatibilidad con llamadas internas de la API que no pasan auth_token."""
+        from unittest.mock import patch
+        nodo = self.crear_nodo(token=TOKEN)
+        archivo = self.origen / "desde_api.txt"
+        archivo.write_text("origen API")
+        with patch.dict(os.environ, {"LOCALSYNC_AUTH_TOKEN": TOKEN}):
+            self.assertTrue(comprobar_conexion("127.0.0.1", nodo.port))
+            self.assertTrue(enviar_archivo(archivo, "127.0.0.1", nodo.port))
+        self.assertEqual((self.destino / archivo.name).read_text(), "origen API")
+
     def test_conflicto_conserva_original_y_version(self):
         nodo = self.crear_nodo()
         archivo = self.origen / "informe.txt"
