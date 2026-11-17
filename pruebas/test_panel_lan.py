@@ -95,6 +95,7 @@ class TestPanelLAN(unittest.TestCase):
             self.assertEqual(estado["envios"], 1)
             self.assertEqual(estado["recibidos"], 1)
             self.assertIn("ENVIO_OK", [e["tipo"] for e in estado["historial"]])
+            self.assertIn("RECEPCION_OK", [e["tipo"] for e in estado["historial"]])
         finally:
             stop = self.client.post("/api/lan/receptor/detener", json={})
             self.assertEqual(stop.status_code, 200, stop.text)
