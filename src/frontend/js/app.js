@@ -1,118 +1,307 @@
-/**
- * Lógica del Panel Web Local - LocalSync (Grupo G1)
- * Integrantes: Valery Michell Herrera Roca, Daniel Felipe Rojas Gonzales
- */
-(function () {
-    if (window.__LOCALSYNC_UI_LOADED__) return;
-    window.__LOCALSYNC_UI_LOADED__ = true;
+/* LocalSync: controles reales de la interfaz local */
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const state = {view: "resumen", files: {envios:[], recibidos:[]}, demo: null, toastTimer: null};
 
-    const statusContainer = document.getElementById("apiStatusContainer");
-    const controlFeedback = document.getElementById("controlFeedback");
-    const btnRefresh = document.getElementById("btnRefresh");
-    const btnInitDb = document.getElementById("btnInitDb");
-    const btnPause = document.getElementById("btnPause");
-    const btnResume = document.getElementById("btnResume");
-
-    async function cargarEstadoAPI() {
-        try {
-            const resp = await fetch("/api/estado");
-            if (!resp.ok) throw new Error("HTTP " + resp.status);
-            const data = await resp.json();
-            const bd = data.estado_base_datos_sqlite || {};
-            const motor = data.estado_motor_local || {};
-            statusContainer.innerHTML = `
-                <p><strong>Fase Reportada:</strong> ${data.fase_proyecto}</p>
-                <p><strong>Modo Simulación UI:</strong> ${data.es_simulacion ? "Sí (Datos de demostración identificados)" : "No"}</p>
-                <p><strong>Sistema Detectado:</strong> ${data.entorno_real_detectado.sistema_operativo} (Python ${data.entorno_real_detectado.python_version})</p>
-                <p><strong>Base de Datos SQLite Inicializada:</strong> ${bd.bd_inicializada ? "Sí (" + bd.tablas_detectadas.length + " tablas)" : "No inicializada aún"}</p>
-                <p><strong>Bandera Pausa (Memoria API):</strong> ${motor.sincronizacion_pausada ? "Pausada" : "Activa"} | <strong>Watchdog:</strong> ${motor.watchdog_estado_desarrollo}</p>
-            `;
-        } catch (err) {
-            statusContainer.innerHTML = `
-                <p><strong>[MODO ARCHIVO ESTÁTICO SIN SERVIDOR UVICORN ACTIVO]</strong></p>
-                <p>Para consultar <code>/api/estado</code> en vivo, ejecuta: <code>uvicorn src.backend.api.routes:app --host 127.0.0.1 --port 8080</code></p>
-            `;
-        }
+  function notify(message, error = false) {
+    const box = $("toast");
+    box.textContent = String(message);
+    box.classList.toggle("error", error); box.classList.add("show");
+    clearTimeout(state.toastTimer);
+    state.toastTimer = setTimeout(() => box.classList.remove("show"), 4500);
+  }
+  function clock() {
+    $("localClock").textContent = new Intl.DateTimeFormat("es-CO",
+      {hour:"2-digit", minute:"2-digit", hour12:false}).format(new Date());
+  }
+  async function api(url, opts = {}) {
+    let response;
+    try { response = await fetch(url, {cache:"no-store", ...opts}); }
+    catch { throw new Error("No se pudo conectar con FastAPI. Comprueba que Uvicorn esté activo."); }
+    let result;
+    try { result = await response.json(); }
+    catch { throw new Error("La API no devolvió una respuesta JSON válida."); }
+    if (!response.ok) throw new Error(typeof result.detail === "string" ? result.detail
+      : (result.mensaje || "Error HTTP " + response.status));
+    return result;
+  }
+  function post(url, obj = {}) {
+    return api(url, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(obj)});
+  }
+  async function action(button, callback) {
+    if (button.disabled) return;
+    button.disabled = true;
+    try { await callback(); }
+    catch (e) { notify(e.message || String(e), true); }
+    finally { button.disabled = false; }
+  }
+  function showView(view) {
+    if (!["resumen","transferir","laboratorio","actividad"].includes(view)) return;
+    state.view = view;
+    document.querySelectorAll("[data-view]").forEach((part) => part.hidden = part.dataset.view !== view);
+    document.querySelectorAll("[data-nav]").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.nav === view);
+      if (btn.dataset.nav === view) btn.setAttribute("aria-current","page");
+      else btn.removeAttribute("aria-current");
+    });
+    $("breadcrumbSection").textContent = {
+      resumen:"Resumen", transferir:"Transferencias", laboratorio:"Laboratorio virtual", actividad:"Actividad",
+    }[view];
+    document.querySelector(".sidebar").classList.remove("visible");
+    if (view === "laboratorio") loadDemo();
+    if (view === "transferir") refreshFiles();
+    if (view === "actividad") loadLAN();
+    window.scrollTo(0, 0);
+  }
+  function bytes(n) {
+    n = Number(n) || 0;
+    return n < 1024 ? n+" B" : n < 1048576 ? (n/1024).toFixed(1)+" KiB"
+      : (n/1048576).toFixed(2)+" MiB";
+  }
+  function badge(element, label, color = "muted") {
+    element.textContent = label; element.className = "tag "+color;
+  }
+  function renderEvents(events) {
+    const list = $("historyList"); list.replaceChildren();
+    if (!events || !events.length) return empty(list,"No hay eventos en esta sesión.");
+    for (const ev of events) {
+      const row = document.createElement("div"); row.className = "event-item";
+      const icon = document.createElement("span"); icon.className = "event-icon"; icon.textContent = "✓";
+      const detail = document.createElement("div"); detail.className = "event-copy";
+      const name = document.createElement("strong"); name.textContent = ev.tipo;
+      const text = document.createElement("small"); text.textContent = ev.detalle;
+      const timestamp = document.createElement("span"); timestamp.className = "event-time";
+      const d = new Date(ev.fecha);
+      timestamp.textContent = Number.isNaN(d.valueOf()) ? "" : d.toLocaleTimeString("es-CO");
+      detail.append(name,text); row.append(icon,detail,timestamp); list.append(row);
     }
-
-    async function inicializarBD() {
-        try {
-            const resp = await fetch("/api/inicializar-bd", { method: "POST" });
-            const data = await resp.json();
-            controlFeedback.textContent = data.mensaje || "Esquema SQLite procesado.";
-            await cargarEstadoAPI();
-        } catch (err) {
-            controlFeedback.textContent = "No se pudo contactar /api/inicializar-bd (verifica que Uvicorn esté activo).";
-        }
+  }
+  async function loadLAN() {
+    try {
+      const r = await api("/api/lan/estado");
+      const active = Boolean(r.receptor.activo);
+      $("statReceiver").textContent = active ? "En línea" : "Apagado";
+      $("statReceiverDetail").textContent = active ? r.receptor.host+" : "+r.receptor.puerto
+        : r.receptor.error || "Sin servicio TCP iniciado";
+      $("statQueue").textContent = String(r.envios);
+      $("statReceived").textContent = String(r.recibidos);
+      $("sidebarState").textContent = active ? "Receptor activo" : "Receptor detenido";
+      $("sidebarDot").classList.toggle("online", active);
+      $("topologyLocalState").textContent = active ? "Escuchando" : "En espera";
+      $("topologyLocal").textContent = active ? r.receptor.host+" : "+r.receptor.puerto : "Receptor local";
+      badge($("receiverBadge"), active ? "EN LÍNEA" : "APAGADO", active ? "" : "muted");
+      $("startReceiver").disabled = active; $("stopReceiver").disabled = !active;
+      renderEvents(r.historial);
+    } catch(e) {
+      $("statReceiver").textContent = "No disponible";
+      $("sidebarState").textContent = "API no disponible";
+      notify(e.message,true);
     }
-
-    async function cambiarPausa(pausar) {
-        try {
-            const resp = await fetch("/api/control/pausa", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ pausar: pausar })
-            });
-            const data = await resp.json();
-            controlFeedback.textContent = `Bandera sincronizacion_pausada = ${data.sincronizacion_pausada} (${data.alcance_accion})`;
-            await cargarEstadoAPI();
-        } catch (err) {
-            controlFeedback.textContent = "Acción no enviada: el servidor local Uvicorn no está en ejecución.";
-        }
+  }
+  function endpoint() {
+    const host = $("remoteHost").value.trim(), port = Number($("remotePort").value);
+    if (!host) throw new Error("Escribe la dirección IP del receptor.");
+    if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error("Puerto inválido.");
+    $("topologyRemote").textContent = host+" : "+port;
+    return {host, puerto:port, token:$("sharedToken").value};
+  }
+  async function checkConnection() {
+    const result = await post("/api/lan/conexion",endpoint());
+    badge($("connectionBadge"), result.conectado ? "CONECTADO" : "SIN CONEXIÓN",
+      result.conectado ? "" : "danger");
+    $("connectionMessage").textContent = result.detalle;
+    if (!result.conectado) throw new Error(result.detalle);
+    notify("Conexión TCP comprobada con ACK."); await loadLAN();
+  }
+  async function startReceiver() {
+    const port = Number($("receiverPort").value), lan = $("receiverMode").value === "lan";
+    if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error("Puerto de receptor inválido.");
+    const result = await post("/api/lan/receptor/iniciar",
+      {modo_lan:lan,puerto:port,token:$("sharedToken").value});
+    $("remotePort").value = String(result.puerto);
+    if (!lan) $("remoteHost").value = "127.0.0.1";
+    notify(lan ? "Receptor LAN iniciado; usa el mismo token en el otro equipo."
+      : "Receptor local iniciado.");
+    await loadLAN();
+  }
+  function empty(container,text) {
+    container.replaceChildren();
+    const e = document.createElement("div"); e.className = "empty-state"; e.textContent = text;
+    container.append(e);
+  }
+  function fileRow(file, received) {
+    const row = document.createElement("div"); row.className = "file-row";
+    const glyph = document.createElement("span"); glyph.className = "file-symbol";
+    glyph.textContent = received ? "⇩" : "⇧";
+    const info = document.createElement("div"); info.className = "file-meta";
+    const name = document.createElement("div"); name.className = "file-name";
+    name.textContent = file.ruta; name.title = file.ruta;
+    const size = document.createElement("small"); size.textContent = bytes(file.tamano);
+    info.append(name,size);
+    if (received) {
+      const link = document.createElement("a"); link.className = "btn btn-outline btn-small";
+      link.textContent = "↓ Descargar";
+      link.href = "/api/lan/descargar?ruta="+encodeURIComponent(file.ruta);
+      row.append(glyph,info,link);
+    } else {
+      const button = document.createElement("button"); button.className = "btn btn-outline btn-small";
+      button.textContent = "Enviar";
+      button.addEventListener("click",() => action(button,async () => {
+        const result = await post("/api/lan/enviar",{...endpoint(),ruta:file.ruta,reintentos:1});
+        notify("Enviado con ACK. SHA-256: "+result.sha256.slice(0,16)+"…");
+        await loadLAN(); await refreshFiles();
+      }));
+      row.append(glyph,info,button);
     }
-
-    if (btnRefresh) btnRefresh.addEventListener("click", cargarEstadoAPI);
-    if (btnInitDb) btnInitDb.addEventListener("click", inicializarBD);
-    if (btnPause) btnPause.addEventListener("click", () => cambiarPausa(true));
-    if (btnResume) btnResume.addEventListener("click", () => cambiarPausa(false));
-
-
-    const btnP2pCheck = document.getElementById("btnP2pCheck");
-    const btnP2pSend = document.getElementById("btnP2pSend");
-    const p2pStatus = document.getElementById("p2pStatus");
-    const p2pFeedback = document.getElementById("p2pFeedback");
-    const p2pFilename = document.getElementById("p2pFilename");
-
-    async function comprobarP2p() {
-        p2pStatus.textContent = "Comprobando...";
-        try {
-            const resp = await fetch("/api/p2p/conexion");
-            if (!resp.ok) throw new Error("HTTP " + resp.status);
-            const data = await resp.json();
-            p2pStatus.textContent = data.conectado
-                ? "Conectado: " + data.detalle
-                : "Sin conexión: " + data.detalle;
-        } catch (err) {
-            p2pStatus.textContent = "Error al consultar la API: " + err.message;
-        }
+    return row;
+  }
+  async function refreshFiles() {
+    try {
+      const data = await api("/api/lan/archivos");
+      state.files = data;
+      const out = $("outgoingFiles"), incoming = $("incomingFiles");
+      if (!data.envios.length) empty(out,"Todavía no hay archivos preparados.");
+      else {out.replaceChildren();data.envios.forEach(f => out.append(fileRow(f,false)));}
+      if (!data.recibidos.length) empty(incoming,"Los archivos recibidos aparecerán aquí.");
+      else {incoming.replaceChildren();data.recibidos.forEach(f => incoming.append(fileRow(f,true)));}
+      $("outgoingCount").textContent = data.envios.length+" archivos preparados";
+      $("sendAll").disabled = data.envios.length === 0;
+    } catch(e) {notify(e.message,true);}
+  }
+  async function upload(files) {
+    if (!files || !files.length) return;
+    let count = 0;
+    for (const file of Array.from(files)) {
+      if (file.size > 100*1024*1024) {notify(file.name+" supera 100 MiB",true);continue;}
+      const form = new FormData();
+      form.append("archivo",file,file.name);
+      form.append("ruta",file.webkitRelativePath || file.name);
+      try {
+        await api("/api/lan/archivos",{method:"POST",body:form});
+        count++;
+      } catch(e) {notify(file.name+": "+e.message,true);}
     }
-
-    async function enviarP2p() {
-        const nombre = p2pFilename.value.trim();
-        if (!nombre) {
-            p2pFeedback.textContent = "Escribe el nombre de un archivo de archivos_para_enviar.";
-            return;
-        }
-        btnP2pSend.disabled = true;
-        p2pFeedback.textContent = "Enviando...";
-        try {
-            const resp = await fetch("/api/p2p/enviar", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ nombre })
-            });
-            const data = await resp.json();
-            if (!resp.ok) throw new Error(typeof data.detail === "string" ? data.detail : "HTTP " + resp.status);
-            p2pFeedback.textContent = "Transferencia completada: " + data.archivo + " (ACK recibido)";
-        } catch (err) {
-            p2pFeedback.textContent = "No se pudo enviar: " + err.message;
-        } finally {
-            btnP2pSend.disabled = false;
-        }
-    }
-
-    if (btnP2pCheck) btnP2pCheck.addEventListener("click", comprobarP2p);
-    if (btnP2pSend) btnP2pSend.addEventListener("click", enviarP2p);
-
-    cargarEstadoAPI();
+    if (count) notify(count+" archivo(s) preparados.");
+    await refreshFiles();await loadLAN();
+  }
+  function progress(lines,status) {
+    let current = 0;
+    lines.forEach(line => {
+      const m = line.match(/\[([1-6])\/6\]/);
+      if (m) current = Math.max(current, Number(m[1]));
+    });
+    if (status === "aprobado") current = 6;
+    $("labProgress").style.width = Math.round(current/6*100)+"%";
+    document.querySelectorAll("[data-test]").forEach(el =>
+      el.classList.toggle("done",Number(el.dataset.test)<=current));
+  }
+  async function loadDemo() {
+    try {
+      const demo = await api("/api/lan/simulacion/estado");
+      const previous = state.demo && state.demo.estado;
+      state.demo = demo;
+      const labels = {sin_ejecutar:"Sin ejecutar",ejecutando:"En ejecución",
+        aprobado:"Aprobado",fallido:"Fallido"};
+      const label = labels[demo.estado] || demo.estado;
+      $("statDemo").textContent = label;
+      $("labResult").textContent = label;
+      badge($("labBadge"),label.toUpperCase(),
+        demo.estado === "aprobado" ? "" : demo.estado === "fallido" ? "danger" : "muted");
+      $("labStateDescription").textContent =
+        demo.estado === "aprobado" ? "Dos nodos y todas las transferencias verificadas."
+        : demo.estado === "fallido" ? "Consulta los registros para identificar el error."
+        : demo.estado === "ejecutando" ? "Los contenedores están ejecutando las comprobaciones..."
+        : demo.docker_disponible ? "Docker está disponible. Ejecuta la simulación."
+        : "Instala o inicia Docker Desktop para ejecutar este laboratorio.";
+      $("runSimulation").disabled = demo.estado === "ejecutando" || !demo.docker_disponible;
+      $("cleanupSimulation").disabled = demo.estado === "ejecutando" || !demo.docker_disponible;
+      const pre = $("labLog");
+      const output = demo.salida.length ? demo.salida.join("\n")
+        : "Esperando una simulación.\nPara comenzar, pulsa «Ejecutar simulación completa».";
+      if (pre.textContent !== output) {
+        const atBottom = pre.scrollTop+pre.clientHeight >= pre.scrollHeight-70;
+        pre.textContent = output;
+        if (atBottom) pre.scrollTop = pre.scrollHeight;
+      }
+      progress(demo.salida,demo.estado);
+      $("downloadEvidence").hidden = demo.estado === "sin_ejecutar";
+      if (previous === "ejecutando" && demo.estado === "aprobado")
+        notify("¡Auditoría virtual aprobada! Ya puedes descargar la evidencia.");
+      else if (previous === "ejecutando" && demo.estado === "fallido")
+        notify("La simulación falló. Consulta el registro.",true);
+    } catch(e) {notify(e.message,true);}
+  }
+  function events() {
+    document.querySelectorAll("[data-nav]").forEach(b =>
+      b.addEventListener("click",()=>showView(b.dataset.nav)));
+    document.querySelectorAll("[data-jump]").forEach(b =>
+      b.addEventListener("click",()=>showView(b.dataset.jump)));
+    $("menuToggle").addEventListener("click",() =>
+      document.querySelector(".sidebar").classList.toggle("visible"));
+    $("refreshAll").addEventListener("click",()=>Promise.all([loadLAN(),refreshFiles(),loadDemo()]));
+    $("refreshHistory").addEventListener("click",loadLAN);
+    $("refreshFiles").addEventListener("click",refreshFiles);
+    $("remoteHost").addEventListener("change",() =>
+      $("topologyRemote").textContent=$("remoteHost").value+" : "+$("remotePort").value);
+    $("checkConnection").addEventListener("click",() => action($("checkConnection"),checkConnection));
+    $("startReceiver").addEventListener("click",() => action($("startReceiver"),startReceiver));
+    $("stopReceiver").addEventListener("click",() => action($("stopReceiver"),async () => {
+      await post("/api/lan/receptor/detener");notify("Receptor detenido.");await loadLAN();
+    }));
+    $("toggleToken").addEventListener("click",() => {
+      const input=$("sharedToken");input.type=input.type==="password"?"text":"password";
+    });
+    $("newToken").addEventListener("click",() => {
+      const random=new Uint8Array(24);crypto.getRandomValues(random);
+      $("sharedToken").value=Array.from(random,b=>b.toString(16).padStart(2,"0")).join("");
+      notify("Token seguro generado; úsalo en ambos equipos LAN.");
+    });
+    $("copyToken").addEventListener("click",() => action($("copyToken"),async () => {
+      if (!$("sharedToken").value) throw new Error("Primero genera o escribe un token.");
+      await navigator.clipboard.writeText($("sharedToken").value);
+      notify("Token copiado; compártelo de forma privada.");
+    }));
+    $("uploadFiles").addEventListener("change",async event => {
+      await upload(event.target.files);event.target.value="";
+    });
+    $("uploadFolder").addEventListener("change",async event => {
+      await upload(event.target.files);event.target.value="";
+    });
+    const drop=$("dropZone");
+    drop.addEventListener("click",()=>$("uploadFiles").click());
+    drop.addEventListener("keydown",event => {
+      if (event.key==="Enter"||event.key===" ") {event.preventDefault();$("uploadFiles").click();}
+    });
+    drop.addEventListener("dragover",event => {event.preventDefault();drop.classList.add("dragging");});
+    drop.addEventListener("dragleave",()=>drop.classList.remove("dragging"));
+    drop.addEventListener("drop",event => {
+      event.preventDefault();drop.classList.remove("dragging");upload(event.dataTransfer.files);
+    });
+    $("sendAll").addEventListener("click",()=>action($("sendAll"),async () => {
+      const result=await post("/api/lan/enviar-carpeta",{...endpoint(),prefijo:"LocalSync"});
+      notify(result.mensaje,result.errores>0);await loadLAN();await refreshFiles();
+    }));
+    $("runSimulation").addEventListener("click",()=>action($("runSimulation"),async () => {
+      await post("/api/lan/simulacion/iniciar");
+      notify("Simulación Docker iniciada.");
+      showView("laboratorio");await loadDemo();
+    }));
+    $("cleanupSimulation").addEventListener("click",()=>action($("cleanupSimulation"),async () => {
+      if (!confirm("¿Eliminar los contenedores y volúmenes de prueba del laboratorio?")) return;
+      await post("/api/lan/simulacion/limpiar");
+      notify("Limpieza del laboratorio iniciada.");await loadDemo();
+    }));
+  }
+  async function start() {
+    events();clock();
+    await Promise.all([loadLAN(),refreshFiles(),loadDemo()]);
+    setInterval(clock,30000);
+    setInterval(()=>{if(!document.hidden)loadLAN();},5000);
+    setInterval(()=>{
+      if(!document.hidden&&(state.view==="laboratorio"||state.demo?.estado==="ejecutando"))loadDemo();
+    },1700);
+    setInterval(()=>{if(!document.hidden&&state.view==="transferir")refreshFiles();},7500);
+  }
+  start();
 })();
