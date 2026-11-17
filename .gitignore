@@ -6,3 +6,14 @@ venv/
 *.sqlite3
 *.part
 *.log
+
+# Entornos Python y datos privados para transferencias LAN
+.venv/
+*.env
+*.key
+*.pem
+*.p12
+*.crt
+archivos_para_enviar/
+archivos_recibidos/
+muestra_local/
