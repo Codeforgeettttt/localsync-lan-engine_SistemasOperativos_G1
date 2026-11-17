@@ -1,0 +1,53 @@
+# Dos equipos Linux virtuales en LAN Docker aislada; sin puertos expuestos al host.
+# Requiere LOCALSYNC_AUTH_TOKEN generado por simulacion/demo.py.
+x-nodo-base: &nodo-base
+  build:
+    context: ..
+    dockerfile: simulacion/Dockerfile
+  environment:
+    LOCALSYNC_AUTH_TOKEN: "${LOCALSYNC_AUTH_TOKEN:?Ejecuta python simulacion/demo.py}"
+  networks:
+    - lan_virtual
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  healthcheck:
+    test:
+      - CMD
+      - python
+      - -m
+      - src.backend.network.cliente_tcp
+      - --host
+      - "127.0.0.1"
+      - --port
+      - "9001"
+    interval: 5s
+    timeout: 4s
+    retries: 12
+    start_period: 5s
+
+services:
+  nodo-a:
+    <<: *nodo-base
+    hostname: localsync-nodo-a
+    volumes:
+      - datos_nodo_a:/data
+
+  nodo-b:
+    <<: *nodo-base
+    hostname: localsync-nodo-b
+    volumes:
+      - datos_nodo_b:/data
+
+networks:
+  lan_virtual:
+    driver: bridge
+    internal: true
+
+volumes:
+  datos_nodo_a:
+  datos_nodo_b:
