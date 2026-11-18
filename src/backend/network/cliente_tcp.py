@@ -85,7 +85,8 @@ def comprobar_conexion(host: str, puerto: int = DEFAULT_PORT, timeout: float = 3
 def enviar_archivo(ruta_archivo: str | Path, host: str, puerto: int = DEFAULT_PORT,
                    timeout: float = 5.0, *, auth_token: str | None = None,
                    tls_ca: str | None = None, tls_server_name: str | None = None,
-                   ruta_remota: str | None = None, reintentos: int = 0) -> bool:
+                   ruta_remota: str | None = None, reintentos: int = 0,
+                   reanudar: bool = False) -> bool:
     """Envía un archivo por bloques, autentica opcionalmente y valida el ACK.
 
     Los reintentos repiten el archivo completo. El receptor evita duplicados
@@ -105,14 +106,24 @@ def enviar_archivo(ruta_archivo: str | Path, host: str, puerto: int = DEFAULT_PO
     _ruta_segura(Path.cwd(), nombre_remoto)  # Rechazar traversal antes de abrir socket
     protocolo = NodoP2PTCP(host="127.0.0.1", port=puerto)
     sha = calcular_sha256(ruta)
-    cabecera = protocolo.crear_mensaje_control("CREATE", nombre_remoto, sha, tamano)
+    cabecera = protocolo.crear_mensaje_control(
+        "CREATE_RESUME" if reanudar else "CREATE", nombre_remoto, sha, tamano)
 
     for intento in range(reintentos + 1):
         try:
             with _conectar(host, puerto, timeout, tls_ca, tls_server_name) as conexion:
                 _autenticar(conexion, protocolo, auth_token if auth_token is not None else os.getenv("LOCALSYNC_AUTH_TOKEN"))
                 protocolo.enviar_trama(conexion, cabecera)
+                offset = 0
+                if reanudar:
+                    oferta = _validar_ack(protocolo, conexion)
+                    offset = oferta["tamano_bytes"]
+                    if not 0 <= offset <= tamano or oferta["hash_sha256"] != sha:
+                        raise ValueError("El receptor informó un offset o hash de reanudación inválido.")
+                    if oferta["ruta_relativa"] != nombre_remoto:
+                        raise ValueError("La ruta remota de reanudación no coincide.")
                 with ruta.open("rb") as origen:
+                    origen.seek(offset)
                     while bloque := origen.read(65536):
                         conexion.sendall(bloque)
                 respuesta = _validar_ack(protocolo, conexion)
@@ -157,7 +168,8 @@ def enviar_borrado(ruta_remota: str, host: str, puerto: int = DEFAULT_PORT,
 def enviar_carpeta(directorio: str | Path, host: str, puerto: int = DEFAULT_PORT,
                    *, timeout: float = 15.0, auth_token: str | None = None,
                    tls_ca: str | None = None, tls_server_name: str | None = None,
-                   prefijo_remoto: str = "", reintentos: int = 1) -> tuple[int, int]:
+                   prefijo_remoto: str = "", reintentos: int = 1,
+                   reanudar: bool = False) -> tuple[int, int]:
     """Envía recursivamente archivos normales preservando rutas relativas.
 
     No propaga eliminaciones ni observa cambios en tiempo real.
@@ -174,7 +186,8 @@ def enviar_carpeta(directorio: str | Path, host: str, puerto: int = DEFAULT_PORT
         try:
             enviar_archivo(ruta, host, puerto, timeout, auth_token=auth_token,
                            tls_ca=tls_ca, tls_server_name=tls_server_name,
-                           ruta_remota=remota, reintentos=reintentos)
+                           ruta_remota=remota, reintentos=reintentos,
+                           reanudar=reanudar)
             correctos += 1
         except (OSError, ValueError, ConnectionError, PermissionError) as exc:
             errores += 1
@@ -193,6 +206,7 @@ def main() -> int:
     parser.add_argument("--remote-path", help="Ruta relativa en el receptor (solo --file)")
     parser.add_argument("--remote-prefix", default="", help="Subcarpeta en el receptor (solo --directory)")
     parser.add_argument("--retries", type=int, default=1)
+    parser.add_argument("--resume", action="store_true", help="Reanudar transferencia interrumpida usando parciales persistentes")
     parser.add_argument("--auth-token", default=os.getenv("LOCALSYNC_AUTH_TOKEN"),
                         help="Preferir variable de entorno LOCALSYNC_AUTH_TOKEN")
     parser.add_argument("--tls-ca", help="Certificado PEM confiable del servidor")
@@ -210,14 +224,16 @@ def main() -> int:
             bien, mal = enviar_carpeta(args.directory, args.host, args.port, timeout=args.timeout,
                                       auth_token=args.auth_token, tls_ca=args.tls_ca,
                                       tls_server_name=args.tls_server_name,
-                                      prefijo_remoto=args.remote_prefix, reintentos=args.retries)
+                                      prefijo_remoto=args.remote_prefix, reintentos=args.retries,
+                                      reanudar=args.resume)
             print(f"[LocalSync][RESUMEN] enviados={bien} errores={mal}")
             return 1 if mal else 0
         if args.file:
             enviar_archivo(args.file, args.host, args.port, timeout=args.timeout,
                            auth_token=args.auth_token, tls_ca=args.tls_ca,
                            tls_server_name=args.tls_server_name,
-                           ruta_remota=args.remote_path, reintentos=args.retries)
+                           ruta_remota=args.remote_path, reintentos=args.retries,
+                           reanudar=args.resume)
             print(f"[LocalSync] ACK recibido: archivo enviado {args.file}")
         else:
             comprobar_conexion(args.host, args.port, timeout=args.timeout,
