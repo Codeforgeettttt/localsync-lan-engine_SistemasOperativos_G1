@@ -280,6 +280,7 @@ Procedimiento, convenciones, historial trazable y propuesta de versiones: [CONTR
 | Documento | Contenido |
 | --- | --- |
 | [ARQUITECTURA.md](documentacion/ARQUITECTURA.md) | Arquitectura, componentes, despliegue, diagramas y decisiones |
+| [REQUISITOS_Y_TRAZABILIDAD.md](documentacion/REQUISITOS_Y_TRAZABILIDAD.md) | Objetivos, casos de uso, RF/RNF y matriz de trazabilidad código-pruebas |
 | [PROTOCOLO_TCP.md](documentacion/PROTOCOLO_TCP.md) | Tramas, autenticación, ACK, recepción, conflictos y flujos |
 | [API_Y_DATOS.md](documentacion/API_Y_DATOS.md) | API REST, contratos, SQLite y matriz implementado/pendiente |
 | [MANUAL_USUARIO.md](documentacion/MANUAL_USUARIO.md) | Instalación, GUI, operación y transferencia en LAN |
