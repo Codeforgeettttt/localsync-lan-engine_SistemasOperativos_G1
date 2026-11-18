@@ -412,6 +412,11 @@ class AutoSync:
             current=current/segment
             if current.is_symlink(): raise ValueError("Destino con enlace simbólico")
         dest.parent.mkdir(parents=True,exist_ok=True)
+        # Conservar también el estado actual antes de restaurar una versión antigua.
+        if dest.is_file():
+            previous_sha = calcular_sha256(dest)
+            if previous_sha != version["sha256"]:
+                self._backup(rel, dest, previous_sha)
         temp=dest.parent / (".localsync-restore-"+str(time.time_ns()))
         try:
             shutil.copy2(src,temp)
