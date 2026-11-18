@@ -46,15 +46,24 @@ class MotorSincronizacionLocal:
     def __init__(self, directorio_autorizado: str | Path | None = None) -> None:
         self.directorio_autorizado = Path(directorio_autorizado).resolve() if directorio_autorizado else None
         self.sincronizacion_pausada: bool = False
-        self.watchdog_implementado: bool = False
+        self.watchdog_implementado: bool = True
 
     def obtener_estado_motor(self) -> Dict[str, Any]:
+        # Consulta diferida para no crear un ciclo de imports durante FastAPI.
+        # El estado del motor nuevo es independiente del estado legado de Fase 1.
+        try:
+            from src.backend.api.sync_routes import get_engine
+            actual = get_engine().status()
+        except (OSError, ValueError, RuntimeError):
+            actual = {"activo": False, "watchdog_activo": False}
         return {
-            "fase_actual": "Fase 1 - Estructuración e Integridad Base",
-            "watchdog_activo": False,
-            "watchdog_estado_desarrollo": "Estructurado (Pendiente implementación en Fase 4)",
+            "fase_actual": "Motor de sincronización y transferencia LAN integrado",
+            "watchdog_activo": bool(actual.get("watchdog_activo")),
+            "watchdog_estado_desarrollo": "Implementado con respaldo de escaneo",
             "sha256_operativo": True,
             "validador_rutas_operativo": True,
             "sincronizacion_pausada": self.sincronizacion_pausada,
-            "directorio_autorizado": str(self.directorio_autorizado) if self.directorio_autorizado else None,
+            "sincronizacion_automatica_activa": bool(actual.get("activo")),
+            "directorio_autorizado": actual.get("carpeta") or (
+                str(self.directorio_autorizado) if self.directorio_autorizado else None),
         }
