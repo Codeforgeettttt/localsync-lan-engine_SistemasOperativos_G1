@@ -134,8 +134,28 @@ En Windows: `Get-FileHash -Algorithm SHA256 .\archivo.txt`. En Ubuntu: `sha256su
 - Prueba de carpeta anidada y nombre conflictivo.
 - Capturas/logs de Docker y `pytest`/CI aprobados.
 - Explicación de diferencias entre prueba de localhost, contenedores y LAN real.
-- Declaración precisa del alcance: no hay observador Watchdog ni reanudación por bloques.
+- Demostración de Watchdog, reanudación por offset y cola persistente; indicar que no hay consenso de ediciones simultáneas.
 
 ## 8. Condiciones de cierre
 
-La entrega técnica del **transporte manual de archivos** puede considerarse lista cuando: la suite pasa en la rama final, las evidencias de campo se anexan, la GUI y CLI demuestran A↔B, el receptor rechaza operaciones inválidas y la documentación es consistente con código y estado real. Si el profesor exige **sincronización automática**, ese requisito sigue pendiente y debe planificarse por separado.
+La entrega técnica de **transferencia y sincronización automática** se considera lista para la evaluación de despliegue tras pasar la suite del commit final, recopilar evidencias de campo de A↔B, reanudar tras desconexión y comparar SHA-256 en ambos equipos. El consenso de ediciones concurrentes y la auditoría externa de seguridad quedan fuera del alcance.
+
+
+## 9. Pruebas añadidas para sincronización automática (noviembre de 2026)
+
+| Caso | Archivo/verificador | Resultado esperado |
+| --- | --- | --- |
+| Detección automática, ACK y hash | `pruebas/test_autosync.py` | Archivo nuevo se entrega sin pulsar Enviar |
+| Cola SQLite persistente | `pruebas/test_autosync.py` | Los pendientes sobreviven a reinicios del gestor |
+| Recuperación de versiones | `pruebas/test_autosync.py` | Se restaura un respaldo íntegro |
+| Borrado remoto autorizado | `pruebas/test_autosync.py` | Archivo mueve a papelera recuperable |
+| Borrado remoto no autorizado | `pruebas/test_autosync.py` | Operación rechazada |
+| Descubrimiento LAN por HMAC | `pruebas/test_discovery.py` | Solo respuestas firmadas se muestran |
+| Reanudación TCP con corte forzado | `pruebas/test_resume.py` | Continúa desde byte 10 000 y valida SHA-256 |
+| Dos nodos con actualización B→A | `pruebas/test_sync_bidireccional.py` | No hay bucle y se guardan versiones |
+| Sincronización real entre Linux Docker | `simulacion/demo_autosync.py` | Dos contenedores replican creación, modificación y borrado archivado |
+| CI Windows, Ubuntu, Chrome | `.github/workflows/tests.yml` y `pruebas.yml` | Trabajos completados con éxito |
+
+**Evidencia CI de integración del nuevo motor:** [últimos resultados](https://github.com/Codeforgeettttt/localsync-lan-engine_SistemasOperativos_G1/actions). Las pruebas virtuales verifican código, **no** equivalen a demostrar que la nueva sincronización automática ya fue desplegada en las dos PC físicas; esa validación debe realizarse siguiendo [DESPLIEGUE_FINAL.md](DESPLIEGUE_FINAL.md).
+
+**Alcance residual:** no hay consenso para ediciones simultáneas, TLS no se activa sin certificados, y los parciales/respaldos no tienen purga automática.
