@@ -70,6 +70,11 @@ class TestInterfazEnNavegador(unittest.TestCase):
                 page.locator('[data-nav="laboratorio"]').click()
                 self.assertTrue(page.locator("#runSimulation").is_visible())
                 page.screenshot(path=str(directorio / "03_laboratorio.png"), full_page=True)
+                page.locator("#runLocalSimulation").click()
+                page.wait_for_function(
+                    "document.getElementById('labLog').textContent.includes('PRUEBA LOCAL APROBADA')",
+                    timeout=60000)
+                page.screenshot(path=str(directorio / "05_prueba_local_sin_docker.png"), full_page=True)
                 self.assertFalse(errores, "Errores JavaScript: "+repr(errores))
             finally:
                 navegador.close()
