@@ -453,6 +453,20 @@ def _ejecutar_demo(accion: str):
 def _iniciar_demo(accion: str):
     if accion != "local" and not shutil.which("docker"):
         raise HTTPException(503, "Docker no está disponible. Inicia Docker Desktop o usa la prueba local sin Docker.")
+    if accion != "local":
+        try:
+            motor = subprocess.run(
+                ["docker", "info", "--format", "{{.ServerVersion}}"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                text=True, timeout=5, check=False,
+            )
+            if motor.returncode != 0:
+                raise HTTPException(503,
+                    "Docker está instalado, pero su motor no responde. Abre Docker Desktop, "
+                    "comprueba el modo Linux y vuelve a intentarlo; también puedes usar la prueba local.")
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise HTTPException(503,
+                "No se puede comunicar con Docker. Inicia Docker Desktop o usa la prueba local.") from exc
     script = DEMO_LOCAL if accion == "local" else DEMO
     if not script.is_file():
         raise HTTPException(500, "No se encontró el programa de simulación.")
