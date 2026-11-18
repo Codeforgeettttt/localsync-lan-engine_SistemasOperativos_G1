@@ -24,7 +24,7 @@ DEFAULT_PORT = 9001
 BUFFER_SIZE = 65536
 MAX_MESSAGE_SIZE = 1024 * 1024
 OPERACIONES_VALIDAS = {
-    "CREATE", "MODIFY", "DELETE", "PING", "ACK", "ERROR",
+    "CREATE", "CREATE_RESUME", "MODIFY", "DELETE", "PING", "ACK", "ERROR",
     "AUTH_INIT", "AUTH_CHALLENGE", "AUTH_RESPONSE",
 }
 
@@ -78,7 +78,7 @@ class NodoP2PTCP:
         op = operacion.upper().strip()
         if op not in OPERACIONES_VALIDAS:
             raise ValueError(f"Operación no válida: {operacion}")
-        if op in {"CREATE", "MODIFY", "DELETE"} and not ruta_relativa.strip():
+        if op in {"CREATE", "CREATE_RESUME", "MODIFY", "DELETE"} and not ruta_relativa.strip():
             raise ValueError("La ruta relativa no puede estar vacía.")
         if not isinstance(sha256, str) or len(sha256) != 64 or any(x not in "0123456789abcdefABCDEF" for x in sha256):
             raise ValueError("El SHA-256 debe tener exactamente 64 caracteres hexadecimales.")
@@ -158,11 +158,24 @@ class NodoP2PTCP:
         mensaje = self.decodificar_mensaje_control(self.recibir_trama(conexion))
         if mensaje["operacion"] == "PING":
             self.enviar_trama(conexion, self.crear_mensaje_control("ACK", "pong", "0" * 64, 0))
-        elif mensaje["operacion"] == "CREATE" and self.carpeta_autorizada is not None:
+        elif mensaje["operacion"] in {"CREATE", "CREATE_RESUME"} and self.carpeta_autorizada is not None:
             from .transferencia import recibir_archivo
-            destino = recibir_archivo(conexion, mensaje, self.carpeta_autorizada,
-                                     on_conflict=self.on_conflict,
-                                     on_before_overwrite=self.on_before_overwrite)
+            if mensaje["operacion"] == "CREATE_RESUME":
+                from .transferencia import recibir_reanudable
+                destino = recibir_reanudable(
+                    conexion, mensaje, self.carpeta_autorizada,
+                    on_conflict=self.on_conflict,
+                    on_before_overwrite=self.on_before_overwrite,
+                    on_offset=lambda offset: self.enviar_trama(
+                        conexion,self.crear_mensaje_control(
+                            "ACK",mensaje["ruta_relativa"],mensaje["hash_sha256"],offset)),
+                )
+            else:
+                destino = recibir_archivo(
+                    conexion, mensaje, self.carpeta_autorizada,
+                    on_conflict=self.on_conflict,
+                    on_before_overwrite=self.on_before_overwrite)
+
             self.enviar_trama(conexion, self.crear_mensaje_control(
                 "ACK", str(destino.relative_to(Path(self.carpeta_autorizada).resolve()).as_posix()),
                 mensaje["hash_sha256"], mensaje["tamano_bytes"],
