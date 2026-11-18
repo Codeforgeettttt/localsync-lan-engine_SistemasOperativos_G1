@@ -121,6 +121,41 @@ def cambiar_estado_pausa(solicitud: SolicitudPausa):
     }
 
 
+
+@app.on_event("startup")
+def despliegue_automatico_configurado():
+    """Arranque opcional por variables de entorno, sin exponer HTTP en la LAN."""
+    import os
+    if os.getenv("LOCALSYNC_AUTOSTART", "0") != "1":
+        return
+    from src.backend.api.lan_routes import InicioReceptor, iniciar_receptor
+    from src.backend.api.sync_routes import _host
+    token = os.getenv("LOCALSYNC_AUTH_TOKEN", "")
+    peer = os.getenv("LOCALSYNC_SYNC_PEER", "").strip()
+    port = int(os.getenv("LOCALSYNC_SYNC_PEER_PORT", "9001"))
+    listen_port = int(os.getenv("LOCALSYNC_P2P_PORT", "9001"))
+    if len(token) < 16 or not peer:
+        raise RuntimeError(
+            "LOCALSYNC_AUTOSTART requiere LOCALSYNC_AUTH_TOKEN (16+ caracteres) "
+            "y LOCALSYNC_SYNC_PEER (IPv4 privada)."
+        )
+    peer = _host(peer)
+    delete = os.getenv("LOCALSYNC_ALLOW_REMOTE_DELETE", "0") == "1"
+    engine = get_engine()
+    engine.add_peer(peer, port, token)
+    iniciar_receptor(InicioReceptor(modo_lan=True, carpeta_compartida=True,
+                                    permitir_borrado=delete, puerto=listen_port,
+                                    token=token))
+    engine.start(propagate_deletes=delete)
+
+
+@app.on_event("shutdown")
+def detener_servicios_en_cierre():
+    from src.backend.api.lan_routes import detener_receptor
+    get_engine().stop()
+    detener_receptor()
+
+
 FRONTEND_DIR = Path(__file__).resolve().parent.parent.parent / "frontend"
 if FRONTEND_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
