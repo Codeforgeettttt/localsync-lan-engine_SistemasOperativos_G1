@@ -43,7 +43,7 @@ class NodoP2PTCP:
                  carpeta_autorizada=None, *, auth_token: str | None = None,
                  insecure_lan: bool = False, tls_cert: str | None = None,
                  tls_key: str | None = None, on_conflict: str = "keep-both",
-                 max_workers: int = 8, on_received=None) -> None:
+                 max_workers: int = 8, on_received=None, allow_delete: bool = False) -> None:
         if not (1024 <= int(port) <= 65535):
             raise ValueError("El puerto TCP debe estar entre 1024 y 65535.")
         if (tls_cert is None) != (tls_key is None):
@@ -66,6 +66,7 @@ class NodoP2PTCP:
         self.on_conflict = on_conflict
         self.max_workers = max_workers
         self.on_received = on_received
+        self.allow_delete = bool(allow_delete)
         self.transporte_tcp_activo = False
         self.tls_activo = bool(tls_cert)
 
@@ -170,6 +171,25 @@ class NodoP2PTCP:
                 except Exception as exc:
                     # El archivo ya fue confirmado y no debe fallar por problemas del panel.
                     print(f"[LocalSync][EVENTO_ERROR] {type(exc).__name__}", flush=True)
+        elif mensaje["operacion"] == "DELETE" and self.allow_delete and self.carpeta_autorizada is not None:
+            if not self.auth_token:
+                raise PermissionError("El borrado remoto exige autenticación HMAC.")
+            from .transferencia import _ruta_segura
+            base = Path(self.carpeta_autorizada).resolve()
+            destino = _ruta_segura(base, mensaje["ruta_relativa"])
+            # En lugar de borrado irreversible se mueve a un archivo de respaldo.
+            if destino.exists():
+                if destino.is_symlink() or not destino.is_file():
+                    raise ValueError("No se permite borrar un directorio ni un enlace simbólico")
+                import shutil
+                import time
+                papelera = base / ".localsync_deleted"
+                papelera.mkdir(exist_ok=True)
+                respaldo = papelera / (str(time.time_ns()) + "-" + destino.name)
+                shutil.move(str(destino), str(respaldo))
+            self.enviar_trama(conexion, self.crear_mensaje_control(
+                "ACK", mensaje["ruta_relativa"], "0" * 64, 0))
+            print(f"[LocalSync][BORRADO_ARCHIVADO] {mensaje['ruta_relativa']}", flush=True)
         else:
             raise ValueError("Operación no admitida o recepción deshabilitada.")
 
