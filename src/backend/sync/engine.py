@@ -115,6 +115,11 @@ class ColaPersistente:
                            tries=0,state='pending',next_run=0,error='',
                            created_at=excluded.created_at""", (peer_id, path, op, sha, utc()))
 
+    def suppress_path(self, path: str):
+        """Evita reenviar al origen una operación que acaba de llegar del remoto."""
+        with self.lock, closing(self._open()) as con, con:
+            con.execute("DELETE FROM sync_queue WHERE path=?", (path,))
+
     def next_job(self):
         with self.lock, closing(self._open()) as con:
             row = con.execute("""
@@ -285,6 +290,10 @@ class AutoSync:
         return found
 
     def scan(self):
+        with self._lock:
+            return self._scan_locked()
+
+    def _scan_locked(self):
         previous = self.db.files()
         current = self.snapshot()
         peers = self.db.peers()
@@ -318,6 +327,43 @@ class AutoSync:
             self.event("ELIMINADO_LOCAL",rel)
         self._first_scan=False
         self._stable={k:v for k,v in self._stable.items() if k in current}
+
+    def backup_before_overwrite(self, target: Path):
+        """Captura la versión anterior antes de recibir bytes nuevos."""
+        with self._lock:
+            target=Path(target).resolve()
+            if not target.is_relative_to(self.root) or not target.is_file():
+                raise ValueError("Destino de respaldo inválido")
+            rel=target.relative_to(self.root).as_posix()
+            sha=calcular_sha256(target)
+            self._backup(rel,target,sha)
+
+    def register_incoming(self, target: Path, message: dict):
+        """Marca la recepción como conocida para evitar un ciclo de rebotes."""
+        with self._lock:
+            target=Path(target).resolve()
+            if not target.is_relative_to(self.root) or not target.is_file():
+                raise ValueError("Recepción fuera de carpeta compartida")
+            rel=target.relative_to(self.root).as_posix()
+            stat=target.stat()
+            sha=calcular_sha256(target)
+            self.db.set_file(rel,sha,stat.st_size,stat.st_mtime_ns)
+            self._stable[rel]=(stat.st_size,stat.st_mtime_ns)
+            self.db.suppress_path(rel)
+            self._backup(rel,target,sha)
+            self.event("RECIBIDO_SYNC",rel)
+
+    def register_remote_deleted(self, target: Path, message: dict):
+        """Actualiza snapshot local sin disparar borrado de vuelta al par."""
+        with self._lock:
+            target=Path(target)
+            if not target.absolute().is_relative_to(self.root):
+                raise ValueError("Borrado fuera de carpeta compartida")
+            rel=target.relative_to(self.root).as_posix()
+            self.db.del_file(rel)
+            self.db.suppress_path(rel)
+            self._stable.pop(rel,None)
+            self.event("BORRADO_RECIBIDO",rel)
 
     def dispatch(self):
         job=self.db.next_job()
