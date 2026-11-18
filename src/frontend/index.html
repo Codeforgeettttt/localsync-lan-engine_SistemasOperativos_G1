@@ -90,8 +90,8 @@
                 <label class="field"><span>Puerto TCP</span><input id="remotePort" type="number" min="1024" max="65535" value="9001"></label>
               </div>
               <label class="field"><span>Token compartido (para LAN)</span><div class="input-action"><input id="sharedToken" type="password" placeholder="Mínimo 16 caracteres" autocomplete="off" spellcheck="false"><button type="button" id="toggleToken" aria-label="Mostrar token">◉</button><button type="button" id="newToken" title="Generar token seguro">Generar</button></div></label>
-              <div class="actions"><button class="btn btn-primary" id="checkConnection">↗ &nbsp;Comprobar conexión</button><button class="btn btn-outline" id="copyToken">Copiar token</button></div>
-              <p id="connectionMessage" class="inline-message" aria-live="polite">Ingresa la IP del receptor o prueba con 127.0.0.1.</p>
+              <div class="actions"><button class="btn btn-primary" id="checkConnection">↗ &nbsp;Comprobar conexión</button><button class="btn btn-outline" id="copyToken">Copiar token</button><button class="btn btn-outline" id="discoverPeers">⌕ Buscar equipos</button></div>
+              <p id="connectionMessage" class="inline-message" aria-live="polite">Ingresa la IP del receptor o prueba con 127.0.0.1.</p><div id="discoveredPeers" class="file-list" aria-live="polite"></div>
             </article>
           </div>
           <div class="panel file-panel">
