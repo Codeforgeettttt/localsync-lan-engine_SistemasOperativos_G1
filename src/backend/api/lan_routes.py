@@ -34,8 +34,8 @@ from src.backend.network.p2p_socket import NodoP2PTCP
 from src.backend.network.transferencia import MAX_FILE_SIZE
 
 router = APIRouter(prefix="/api/lan", tags=["Control LAN y laboratorio virtual"])
-ENVIO = BASE_DIR / "archivos_para_enviar"
-RECIBIDOS = BASE_DIR / "archivos_recibidos"
+ENVIO = Path(os.getenv("LOCALSYNC_UPLOAD_DIR", str(BASE_DIR / "archivos_para_enviar"))).resolve()
+RECIBIDOS = Path(os.getenv("LOCALSYNC_RECEIVE_DIR", str(BASE_DIR / "archivos_recibidos"))).resolve()
 DEMO = BASE_DIR / "simulacion" / "demo.py"
 DEMO_LOCAL = BASE_DIR / "simulacion" / "demo_local.py"
 
