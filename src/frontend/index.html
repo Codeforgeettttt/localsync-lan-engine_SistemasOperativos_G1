@@ -20,6 +20,7 @@
       <nav class="nav">
         <button class="nav-item active" data-nav="resumen" aria-current="page"><span class="nav-icon" aria-hidden="true">◫</span> Resumen <span class="nav-key">01</span></button>
         <button class="nav-item" data-nav="transferir"><span class="nav-icon" aria-hidden="true">⇄</span> Transferencias <span class="nav-key">02</span></button>
+        <button class="nav-item" data-nav="sincronizar"><span class="nav-icon" aria-hidden="true">⟳</span> Sincronización <span class="nav-key">03</span></button>
         <button class="nav-item" data-nav="laboratorio"><span class="nav-icon" aria-hidden="true">⌘</span> Laboratorio virtual <span class="nav-key">03</span></button>
         <button class="nav-item" data-nav="actividad"><span class="nav-icon" aria-hidden="true">☷</span> Actividad <span class="nav-key">04</span></button>
       </nav>
@@ -55,7 +56,7 @@
                 <div class="connection"><div class="line-dotted"></div><span class="arrow-bridge">⇄</span><div class="line-caption">SHA-256 · ACK</div></div>
                 <div class="device"><div class="device-icon alt">▣</div><strong>Nodo remoto</strong><small id="topologyRemote">127.0.0.1 : 9001</small><span class="device-badge blue">Red local</span></div>
               </div>
-              <div class="network-note"><span>ⓘ</span> Los envíos reales son manuales. La sincronización automática y Watchdog siguen pendientes.</div>
+              <div class="network-note"><span>ⓘ</span> Transferencia manual y sincronización automática bajo activación explícita. Las copias recibidas no se observan para evitar bucles.</div>
             </article>
             <article class="panel quick-panel">
               <div class="panel-head"><div><div class="eyebrow">ACCESOS RÁPIDOS</div><h2>¿Qué quieres hacer?</h2></div></div>
@@ -105,6 +106,34 @@
           </div>
         </section>
 
+        <section class="view" data-view="sincronizar" hidden>
+          <div class="page-heading"><div><div class="eyebrow"><span class="tiny-line"></span> SINCRONIZACIÓN AUTOMÁTICA</div><h1>Tus archivos, siempre al día.</h1><p>Observa una carpeta, guarda transferencias pendientes y sincroniza cambios automáticamente cuando el otro nodo está disponible.</p></div><span class="section-counter">SCANNER · SQLITE · SHA-256</span></div>
+          <div class="stats-grid">
+            <article class="stat-card"><div class="stat-label">Vigilancia <span>⟳</span></div><div id="syncStatus" class="stat-value small">Detenida</div><div class="stat-foot">Detección de cambios locales</div></article>
+            <article class="stat-card"><div class="stat-label">En cola <span>☷</span></div><div id="syncPending" class="stat-value">0</div><div class="stat-foot">Operaciones SQLite persistentes</div></article>
+            <article class="stat-card"><div class="stat-label">Con reintentos <span>↻</span></div><div id="syncFailures" class="stat-value">0</div><div class="stat-foot">Envíos pendientes de conexión</div></article>
+            <article class="stat-card"><div class="stat-label">Pares configurados <span>▣</span></div><div id="syncPeers" class="stat-value">0</div><div class="stat-foot">Destinos aprobados manualmente</div></article>
+          </div>
+          <div class="transfer-grid">
+            <article class="panel"><div class="panel-head"><div><div class="eyebrow">CONFIGURACIÓN</div><h2>Añadir equipo de confianza</h2></div></div><p class="panel-description">Para sincronizar necesitas un receptor TCP activo en el otro equipo. El token solo se mantiene en memoria, no se guarda en SQLite.</p>
+              <div class="form-grid"><label class="field"><span>IPv4 del receptor</span><input id="syncHost" value="127.0.0.1" placeholder="192.168.1.25" spellcheck="false"></label><label class="field"><span>Puerto TCP</span><input id="syncPort" type="number" min="1024" max="65535" value="9001"></label></div>
+              <label class="field"><span>Token compartido</span><input id="syncToken" type="password" placeholder="Mismo token del receptor (16+ caracteres)" autocomplete="off"></label>
+              <div class="actions"><button id="syncAddPeer" class="btn btn-primary">+ Autorizar equipo</button><button id="syncScan" class="btn btn-outline">↻ Escanear archivos</button></div>
+              <div id="syncPeerList" class="file-list" style="margin-top:18px"><div class="empty-state">Aún no hay pares autorizados.</div></div>
+            </article>
+            <article class="panel"><div class="panel-head"><div><div class="eyebrow">MOTOR AUTOMÁTICO</div><h2>Vigilancia de carpeta</h2></div><span id="syncBadge" class="tag muted">DETENIDA</span></div>
+              <p class="panel-description">Carpeta sincronizada de este equipo: <code id="syncPath">carpeta_sincronizada/</code></p>
+              <div class="hint"><span>ⓘ</span> Los archivos nuevos o modificados se detectan aproximadamente cada segundo. Si el par está desconectado, quedan en SQLite y se reintentan.</div>
+              <label class="field" style="margin-top:18px"><span><input id="syncEnableDeletes" type="checkbox" style="width:auto;min-height:0;margin-right:8px"> Propagar borrados remotos (opt-in)</span></label>
+              <p class="panel-description">Para permitir borrados, el receptor remoto también debe iniciar con la opción correspondiente. Los borrados se archivan, no se destruyen permanentemente.</p>
+              <div class="actions"><button id="syncStart" class="btn btn-primary">▶ Iniciar sincronización</button><button id="syncStop" class="btn btn-outline">■ Detener</button></div>
+            </article>
+          </div>
+          <div class="panel"><div class="panel-head"><div><div class="eyebrow">REINTENTOS Y EVENTOS</div><h2>Estado de sincronización</h2></div><button id="syncRefresh" class="btn btn-outline btn-small">Actualizar</button></div><div id="syncQueueList" class="file-list"><div class="empty-state">No hay trabajos pendientes.</div></div><div id="syncEvents" class="event-list" style="margin-top:14px"></div></div>
+          <div class="panel"><div class="panel-head"><div><div class="eyebrow">RESPALDOS</div><h2>Versiones recuperables</h2></div><button id="syncLoadVersions" class="btn btn-outline btn-small">Ver versiones</button></div><p class="panel-description">LocalSync conserva respaldos de contenidos detectados. Restaurar una versión hace que vuelva a aparecer en la carpeta vigilada.</p><div id="syncVersions" class="file-list"><div class="empty-state">Consulta versiones para restaurar contenidos.</div></div></div>
+          <div class="notice"><span>ⓘ</span><p><strong>Sincronización controlada:</strong> la carpeta vigilada es distinta de la carpeta de recepción, para evitar ciclos y borrados accidentales. Es replicación automática de salida hacia pares autorizados, no edición simultánea multimaestro de la misma carpeta.</p></div>
+        </section>
+
         <section class="view" data-view="laboratorio" hidden>
           <div class="page-heading"><div><div class="eyebrow"><span class="tiny-line"></span> ENTORNO DE PRUEBAS</div><h1>Laboratorio virtual.</h1><p>Prueba entre dos contenedores Linux aislados o entre dos nodos TCP locales si Docker no está disponible.</p></div><span class="section-counter">DOCKER COMPOSE</span></div>
           <div class="lab-hero">
@@ -124,10 +153,10 @@ Para comenzar, pulsa «Ejecutar simulación completa».</pre></div>
         <section class="view" data-view="actividad" hidden>
           <div class="page-heading"><div><div class="eyebrow"><span class="tiny-line"></span> EVIDENCIAS DEL MOTOR</div><h1>Actividad reciente.</h1><p>Eventos registrados en esta sesión local de la aplicación.</p></div><button class="btn btn-outline" id="refreshHistory">↻ &nbsp;Actualizar</button></div>
           <article class="panel"><div class="panel-head"><div><div class="eyebrow">REGISTRO EN VIVO</div><h2>Historial de operaciones</h2></div><span class="tag muted">ÚLTIMOS 60 EVENTOS</span></div><div id="historyList" class="event-list"><div class="empty-state">Los eventos de conexión, recepción y transferencia aparecerán aquí.</div></div></article>
-          <div class="panel transparent-panel"><div class="eyebrow">ALCANCE TÉCNICO</div><h2>Información transparente</h2><p>LocalSync tiene transporte TCP manual, SHA-256, HMAC, TLS opcional, pruebas automatizadas y simulación Docker. La detección de cambios con Watchdog, la cola de reintentos persistente y la sincronización automática bidireccional continúan pendientes. No se representan datos ficticios como transferencias reales.</p></div>
+          <div class="panel transparent-panel"><div class="eyebrow">ALCANCE TÉCNICO</div><h2>Información transparente</h2><p>LocalSync incorpora transporte TCP, vigilancia por escaneo de carpetas, cola SQLite, versiones locales y reintentos. La sincronización es opt-in y no implementa edición simultánea multimaestro ni reanudación parcial de bytes. No se representan datos ficticios.</p></div>
         </section>
       </main>
-      <footer class="footer"><span>LocalSync · Sistemas Operativos · Grupo G1</span><span>Motor TCP manual · laboratorio virtual verificable</span></footer>
+      <footer class="footer"><span>LocalSync · Sistemas Operativos · Grupo G1</span><span>Motor TCP · sincronización opt-in · auditoría verificable</span></footer>
     </div>
   </div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
