@@ -56,6 +56,7 @@ class NodoDestino(BaseModel):
 class Envio(NodoDestino):
     ruta: str = Field(min_length=1, max_length=512)
     reintentos: int = Field(default=1, ge=0, le=3)
+    reanudar: bool = False
 
 
 class EnvioCarpeta(NodoDestino):
