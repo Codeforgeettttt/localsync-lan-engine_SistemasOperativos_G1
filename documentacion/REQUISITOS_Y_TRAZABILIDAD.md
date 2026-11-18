@@ -6,7 +6,7 @@
 
 **Necesidad:** mover archivos de un computador a otro dentro de una LAN de forma directa, sin subirlos a una plataforma de almacenamiento externa y con verificación de integridad. En el proyecto de Sistemas Operativos interesa demostrar redes TCP, sockets, procesos/threads, manejo de archivos, permisos, seguridad y validación.
 
-**Objetivo general:** implementar y verificar un **sistema de transferencia manual de archivos y carpetas** entre equipos en una red local, con una interfaz web local y control de errores.
+**Objetivo general:** implementar y verificar un **sistema de transferencia y sincronización automática de archivos y carpetas** entre equipos en una red local, con una interfaz web local y control de errores.
 
 Objetivos específicos:
 1. Establecer conexiones TCP entre nodos del mismo segmento o red local alcanzable.
@@ -62,10 +62,10 @@ flowchart LR
 | RF-14 | Historial de operaciones de la sesión | Implementado, volátil | `lan_routes._history` | `test_panel_lan.py` |
 | RF-15 | Simular dos nodos reales en localhost | Implementado | `simulacion/demo_local.py` | `test_demo_local.py` |
 | RF-16 | Simular dos contenedores Linux en LAN privada | Implementado | `simulacion/demo.py` | CI Docker |
-| RF-17 | Sincronizar automáticamente tras cambios de archivos | **Pendiente** | Watchdog todavía no conectado | No aplica |
-| RF-18 | Propagar eliminación y modificación remotas automáticamente | **Pendiente** | Operaciones `MODIFY`/`DELETE` no atendidas | No aplica |
-| RF-19 | Cola persistente y reconciliación tras desconexiones | **Pendiente** | Esquema SQLite solamente | No aplica |
-| RF-20 | Reanudar transferencias por bloques tras corte | **Pendiente** | Transporte reintenta el archivo entero | No aplica |
+| RF-17 | Sincronizar automáticamente tras cambios de archivos | **Implementado** | Watchdog y escaneo `sync/engine.py` | `test_autosync.py` |
+| RF-18 | Propagar modificaciones y eliminación remota opt-in | **Implementado con autorización** | `CREATE_RESUME`, `DELETE` autenticado y papelera | `test_sync_bidireccional.py` |
+| RF-19 | Cola persistente y recuperación tras desconexiones | **Implementado** | `sync_queue` en SQLite independiente | `test_autosync.py` |
+| RF-20 | Reanudar transferencias desde el offset restante | **Implementado** | `CREATE_RESUME` y temporales verificados | `test_resume.py` |
 
 Esta matriz es una clasificación del **software entregado**, no una afirmación de que todos los RF del documento original hayan sido aceptados por el docente.
 
@@ -74,7 +74,7 @@ Esta matriz es una clasificación del **software entregado**, no una afirmación
 | ID | Propiedad | Implementación y medición | Límite |
 | --- | --- | --- | --- |
 | RNF-01 | Integridad | SHA-256 en cliente y receptor, comprobado en pruebas | No se implementa firma digital por archivo |
-| RNF-02 | Resistencia a errores | Timeouts, validación de trama, error/ACK y reintentos | No hay recuperación de último byte |
+| RNF-02 | Resistencia a errores | Timeouts, ACK, cola persistente y reanudación por offset | No hay limpieza automática de temporales antiguos |
 | RNF-03 | Restricción de acceso | HMAC para LAN, panel loopback | TLS no está activado por defecto |
 | RNF-04 | Protección de filesystem | Ruta relativa y symlink; carpeta autorizada | No está endurecido contra todas las carreras TOCTOU |
 | RNF-05 | Usabilidad | GUI responsive en HTML/CSS/JS, prueba Chrome | No se ha certificado WCAG ni compatibilidad universal |
@@ -94,8 +94,20 @@ Esta matriz es una clasificación del **software entregado**, no una afirmación
 - [x] Se manejan conflictos y errores de red.
 - [x] Hay pruebas Python, Chrome y simulación Docker en GitHub Actions.
 - [ ] Adjuntar acta formal de la transferencia física con capturas y hashes reales.
-- [ ] Revisar que los requisitos de la asignatura no pidan expresamente la **sincronización automática** que aún está pendiente.
+- [x] Implementadas y verificadas la sincronización automática, cola SQLite, Watchdog y reanudación por offset.
+- [ ] Validar físicamente las funciones nuevas de sincronización en los equipos del grupo.
 
 La prueba entre PC físicas fue reportada como exitosa por el equipo. Hasta disponer de evidencia anexada, no se inventan métricas ni resultados de mediciones.
 
 **Referencias internas:** [Arquitectura](ARQUITECTURA.md), [Protocolo](PROTOCOLO_TCP.md), [Plan de pruebas](PRUEBAS_Y_VALIDACION.md), [Seguridad](SEGURIDAD_Y_ERRORES.md), [Modelo de datos](API_Y_DATOS.md).
+
+## 6. Requisitos adicionales implementados
+
+| ID | Requisito | Evidencia |
+| --- | --- | --- |
+| RF-21 | Descubrir receptores LAN con autenticación UDP/HMAC | `network/discovery.py`; `test_discovery.py` |
+| RF-22 | Recuperar versiones antiguas desde la GUI | `sync_versions`; `/api/sync/restaurar` |
+| RF-23 | Compartir una carpeta entre dos equipos sin rebote automático | `register_incoming`; `test_sync_bidireccional.py` |
+| RF-24 | Arranque automático opcional en Ubuntu | `localsync-autosync.service`; `DESPLIEGUE_FINAL.md` |
+
+**Restricciones restantes:** cambios simultáneos no se resuelven mediante consenso, TLS requiere certificados y no hay cuota/retención automática de respaldos. La prueba física anterior corresponde al transporte manual; la sincronización automática nueva debe desplegarse y verificarse en los dos equipos.
