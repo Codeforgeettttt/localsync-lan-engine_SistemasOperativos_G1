@@ -151,6 +151,13 @@ def recibir_reanudable(conexion, mensaje: dict, carpeta_autorizada: str | Path,
     # El bloqueo impide que sesiones simultáneas modifiquen el mismo temporal.
     # CREATE convencional continúa usando su propia recepción concurrente.
     with _PUBLICATION_LOCK:
+        if dest.is_symlink():
+            raise ValueError("Destino simbólico inseguro")
+        if dest.is_file() and dest.stat().st_size == size and calcular_sha256(dest) == expected:
+            if on_offset is not None:
+                on_offset(size)
+            partial.unlink(missing_ok=True)
+            return dest
         if partial.is_symlink() or (partial.exists() and not partial.is_file()):
             raise ValueError("Temporal de reanudación inseguro")
         offset=partial.stat().st_size if partial.exists() else 0
