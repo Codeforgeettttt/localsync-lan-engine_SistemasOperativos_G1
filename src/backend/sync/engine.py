@@ -376,7 +376,9 @@ class AutoSync:
         try:
             if job["operation"]=="DELETE":
                 from src.backend.network.cliente_tcp import enviar_borrado
-                enviar_borrado(job["path"],job["host"],job["port"],auth_token=token,timeout=5)
+                enviar_borrado(job["path"],job["host"],job["port"],auth_token=token,timeout=5,
+                              tls_ca=os.getenv("LOCALSYNC_TLS_CA") or None,
+                              tls_server_name=os.getenv("LOCALSYNC_TLS_SERVER_NAME") or job["host"])
             else:
                 file=self.root / _safe_relative(job["path"])
                 if not file.is_file() or file.is_symlink():
