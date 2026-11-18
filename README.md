@@ -1,239 +1,298 @@
-# 🔄 LocalSync — Sistema P2P de Sincronización de Archivos en Redes Locales
+# LocalSync LAN Engine
 
-![Plataforma](https://img.shields.io/badge/Plataforma-Ubuntu%20Linux-E95420?style=for-the-badge&logo=ubuntu&logoColor=white)
-![Arquitectura](https://img.shields.io/badge/Arquitectura-P2P%20(Punto%20a%20Punto)-0284C7?style=for-the-badge)
-![Backend](https://img.shields.io/badge/Python%203.10+-FastAPI%20%7C%20Sockets%20TCP-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![Base de Datos](https://img.shields.io/badge/Base%20de%20Datos-SQLite%203-003B57?style=for-the-badge&logo=sqlite&logoColor=white)
-![Servicio](https://img.shields.io/badge/Servicio-systemd-22C55E?style=for-the-badge&logo=linux&logoColor=white)
+**Transferencia directa y verificable de archivos en una red local (LAN)**  
+Proyecto académico de **Sistemas Operativos · Ingeniería de Software · Universidad Manuela Beltrán · Grupo G1**.
 
-**Universidad Manuela Beltrán** • Programa de Ingeniería de Software • Asignatura: **Sistemas Operativos**  
-**Grupo:** G1 • **Repositorio:** `LocalSync_SistemasOperativos_G1`
+**Integrantes:** Valery Michell Herrera Roca y Daniel Felipe Rojas Gonzales.  
+**Estado documentado:** 18 de noviembre de 2026 · **rama principal:** `main` · **versión declarada por FastAPI:** `0.3.0-lan` (*versión interna; no implica que exista un release etiquetado*).
 
----
+[![Pruebas LocalSync](https://github.com/Codeforgeettttt/localsync-lan-engine_SistemasOperativos_G1/actions/workflows/pruebas.yml/badge.svg)](https://github.com/Codeforgeettttt/localsync-lan-engine_SistemasOperativos_G1/actions/workflows/pruebas.yml)
+[![CI Windows y Ubuntu](https://github.com/Codeforgeettttt/localsync-lan-engine_SistemasOperativos_G1/actions/workflows/tests.yml/badge.svg)](https://github.com/Codeforgeettttt/localsync-lan-engine_SistemasOperativos_G1/actions/workflows/tests.yml)
 
-##  1. Integrantes Oficiales del Equipo (Grupo G1)
+> **Alcance real:** LocalSync es hoy una aplicación de **transferencia manual de archivos y carpetas**, mediante TCP, entre dos nodos que pueden emitir y recibir. **No es todavía un sincronizador automático de cambios en tiempo real.** No se requiere internet ni nube para transmitir archivos; GitHub y la descarga inicial de dependencias son tareas distintas de desarrollo/instalación.
 
-| Nombre Completo | Responsabilidades Principales en el Proyecto |
-| :--- | :--- |
-| **Valery Michell Herrera Roca** | Diseño del Modelo Relacional SQLite, Especificación de Requerimientos (RF/RNF), API Local FastAPI y Documentación Técnica |
-| **Daniel Felipe Rojas Gonzales** | Estructura del Motor Core (SHA-256 / Rutas), Protocolo P2P, Interfaz Web Local, Servicio `systemd` y Pruebas Automatizadas |
+## Contenido
 
----
+1. [Qué hace y qué no hace](#qué-hace-y-qué-no-hace)
+2. [Arquitectura](#arquitectura)
+3. [Tecnologías y requisitos](#tecnologías-y-requisitos)
+4. [Instalación y primer uso](#instalación-y-primer-uso)
+5. [Transferencia entre dos computadores](#transferencia-entre-dos-computadores)
+6. [Pruebas virtuales y físicas](#pruebas-virtuales-y-físicas)
+7. [Comandos para desarrolladores](#comandos-para-desarrolladores)
+8. [Seguridad y manejo de errores](#seguridad-y-manejo-de-errores)
+9. [API, datos y límites](#api-datos-y-límites)
+10. [Control de versiones](#control-de-versiones)
+11. [Documentación técnica](#documentación-técnica)
 
-##  2. Descripción General del Proyecto
+## Qué hace y qué no hace
 
-**LocalSync** es una propuesta y prototipo en desarrollo de una aplicación web local para computadores con **Ubuntu Linux** conectados a una misma red de área local (**LAN**). Su propósito es permitir la sincronización directa de archivos mediante una arquitectura **Punto a Punto (P2P)**, sin utilizar un servidor central, sin almacenamiento en la nube y sin depender de servicios externos para la transferencia de datos.
+| Función | Estado | Implementación |
+| --- | --- | --- |
+| Enviar un archivo a una IPv4 privada y puerto TCP | **Implementada** | `cliente_tcp.py` + `p2p_socket.py` |
+| Transferir una carpeta con subdirectorios | **Implementada** | `enviar_carpeta` |
+| Recibir y descargar archivos desde el panel | **Implementada** | API LAN + directorio local |
+| Verificar contenido con SHA-256 | **Implementada** | Cálculo antes de enviar y tras recibir |
+| PING/ACK y confirmación de recepción | **Implementada** | Protocolo `LOCALSYNC_P2P_V1` |
+| Autenticar nodos con un secreto compartido | **Implementada** | Desafío HMAC-SHA256 |
+| TLS para cifrar el canal | **Opcional** | Requiere certificados y configuración explícita |
+| Reintentar una transferencia fallida | **Implementada** | Reenvía el archivo completo |
+| Evitar sobrescritura silenciosa | **Implementada** | `keep-both` por defecto; `reject` / `overwrite` opcionales |
+| Renombrar, borrar y verificar archivos de la bandeja local | **Implementada** | GUI y API; **no borra archivos remotos** |
+| Mostrar historial reciente de operaciones | **Implementada** | Memoria de proceso (últimos eventos; no persistencia) |
+| Simular dos nodos TCP sin Docker | **Implementada y probada** | `simulacion/demo_local.py` |
+| Simular dos contenedores Linux en una LAN Docker | **Implementada y probada en CI** | `simulacion/demo.py` |
+| Servicio receptor mediante `systemd` | **Plantilla disponible** | Requiere instalarlo y verificarlo en Ubuntu |
+| Detección de cambios mediante Watchdog/inotify | **Pendiente** | Dependencia instalada, observador no operativo |
+| Sincronización automática de creación/modificación/borrado | **Pendiente** | No propaga eventos `MODIFY`/`DELETE` |
+| Cola persistente de reintentos y reconciliación | **Pendiente** | Esquema SQLite preparado, no conectado al transporte |
+| Reanudación de transferencias por fragmento | **Pendiente** | Reintento = envío completo |
 
----
+**Importante:** se puede transferir A → B y B → A **iniciando una transferencia manual en cada sentido**; esto no significa replicación bidireccional automática.
 
-##  3. Problema o Necesidad y Justificación
+## Arquitectura
 
-### Planteamiento del Problema y Necesidad
-En laboratorios universitarios, oficinas técnicas y entornos educativos basados en Linux, el intercambio manual de archivos (memorias USB, copias manuales o aplicaciones de mensajería) ocasiona pérdida silenciosa de cambios, proliferación de versiones desactualizadas y duplicidad de información. Por otra parte, las plataformas de almacenamiento en la nube no son viables cuando no hay conectividad a internet o cuando existen políticas estrictas de privacidad dentro de la red local.
-
-> **Pregunta Problema:** *¿Cómo desarrollar una aplicación web para Linux que permita sincronizar archivos directamente entre dos equipos conectados a una red local, sin depender de servicios externos de almacenamiento, gestionando integridad, desconexiones y conflictos de modificación?*
-
-### Justificación Académica y Técnica (Relación con Sistemas Operativos)
-El proyecto permite aplicar y evaluar de manera experimental conceptos esenciales de **Sistemas Operativos**:
-1. **Sistema de Archivos y Llamadas de E/S:** Lectura por bloques de memoria para hashing criptográfico (`SHA-256`), manejo de permisos `POSIX` y validación de rutas canónicas contra ataques *Path Traversal*.
-2. **Monitoreo de Eventos del Kernel:** Observación de eventos de directorios en Linux (`inotify` mediante `Watchdog`, planificado para Fase 4).
-3. **Procesos, Hilos y Demonios del Sistema:** Ejecución supervisada en segundo plano con `systemd` bajo privilegios mínimos.
-4. **Comunicación entre Procesos en Red (IPC):** Diseño de protocolo directo sobre **Sockets TCP** con seguridad **TLS** y tolerancia a desconexiones mediante una cola local en **SQLite 3**.
-
----
-
-##  4. Objetivos del Proyecto
-
-### Objetivo General
-Desarrollar y evaluar una aplicación web para Linux con arquitectura P2P que permita sincronizar archivos entre dos equipos en red local, incorporando detección de cambios, transferencia directa, verificación de integridad, gestión de conflictos y recuperación de versiones, sin servicios externos de almacenamiento.
-
-### Objetivos Específicos
-1. **Investigar** mecanismos de sincronización en red local y analizar soluciones referentes (*Syncthing*).
-2. **Implementar** un motor detector de archivos nuevos, modificados y eliminados en el sistema de archivos Linux.
-3. **Desarrollar** una interfaz web local para configurar pares autorizados, consultar el estado y revisar el historial.
-4. **Diseñar** una arquitectura de comunicación directa y autenticada entre nodos en Linux mediante Sockets TCP.
-5. **Incorporar** verificación criptográfica de integridad (`SHA-256`) y conservación de versiones en conflicto.
-6. **Evaluar** el prototipo mediante pruebas reproducibles de desconexión, concurrencia y rendimiento en red LAN.
-
----
-
-##  5. Alcance Inicial, Usuarios y Beneficiarios
-
-* **Alcance Inicial Incluido:**
-  * Sincronización diseñada para operar entre **2 instancias con Ubuntu Linux** conectadas en red local (LAN).
-  * Autorización manual de pares, protocolo de transferencia directa por **Sockets TCP** y verificación **SHA-256**.
-  * Diseño de manejo de conflictos sin sobrescritura silenciosa, registros de borrado (*tombstones*), historial de versiones y cola persistente en **SQLite 3**.
-  * Panel web local (`HTML/CSS/JS`) comunicado con una API local en `FastAPI`.
-* **Fuera del Alcance (Limitaciones):**
-  * Sincronización a través de internet pública, almacenamiento en nube central, edición colaborativa simultánea sobre un mismo archivo en tiempo real, soporte multiplataforma completo fuera de Linux o topologías masivas de nodos.
-* **Usuarios y Beneficiarios:**
-  * Estudiantes, docentes, laboratorios de cómputo universitario y equipos de desarrollo en entornos Ubuntu Linux que requieren sincronizar directorios de trabajo dentro de una red local privada.
-
----
-
-## ⚙️ 6. Funcionalidades Principales (Diseño del Producto)
-
-1. **Sincronización Bidireccional P2P:** Ambos nodos están diseñados para actuar como cliente y servidor en la red local.
-2. **Verificación de Integridad con SHA-256:** Comprobación criptográfica por bloques de lectura antes de dar por válida una versión.
-3. **Gestión de Conflictos sin Sobrescritura Silenciosa:** Conservación de copias conflictivas en el historial local cuando un archivo se modifica en ambos nodos antes de reconciliar.
-4. **Propagación de Eliminaciones (*Tombstones*) y Cola Persistente:** Registro de borrados e inserción de eventos pendientes en `SQLite 3` cuando el par remoto no está disponible.
-5. **Seguridad de Rutas y Control de Acceso:** Validación estricta contra *Path Traversal*, autorización de pares, canal TLS previsto y servicio `systemd` con privilegios mínimos.
-
----
-
-## 7. Estado actual de integración
-
-| Componente | Estado |
-| --- | --- |
-| TCP manual, SHA-256, rutas seguras | Implementados; prueba local Windows reportada |
-| API y panel web | Integración local probada antes de esta rama; cambios nuevos pendientes de repetir pruebas |
-| IP y puerto configurables | Implementados en esta rama; pendiente validación entre equipos |
-| SQLite | Esquema y gestor implementados; historial de transferencias no integrado |
-| Watchdog, reconciliación, TLS y autenticación | Pendientes |
-| Ubuntu y servicio systemd | Pendientes de validación experimental |
-
-La transferencia manual no equivale a sincronización automática. Consulta la [guía de integración](documentacion/integracion_api_frontend.md).
-
----
-
-##  8. Arquitectura P2P y Modelo Entidad-Relación
-
-### Diagrama de Arquitectura P2P (Estado Fase 1 vs. Planificado)
-![Diagrama de Arquitectura Inicial](documentacion/diagramas/arquitectura_inicial.png)
-
-### Diagrama de Estructura del Producto y Flujo de 8 Etapas
-![Diagrama de Estructura del Producto](documentacion/diagramas/estructura_producto.png)
-
-### Modelo Entidad-Relación SQLite 3 (Corregido con Restricción Compuesta)
-![Modelo Relacional BD](documentacion/diagramas/modelo_relacional_bd.png)
-
-> Las fuentes editables en formato **Mermaid (`.mmd`)** se encuentran en [`documentacion/diagramas/fuentes_mermaid/`](documentacion/diagramas/fuentes_mermaid/).
-
----
-
-##  9. Tecnologías Utilizadas y Previstas
-
-| Componente | Tecnología | Estado actual | Función en el Sistema |
-| :--- | :--- | :--- | :--- |
-| **Sistema Operativo** | `Ubuntu Linux` | Definido | Entorno de ejecución, permisos POSIX y red local. |
-| **Lenguaje / Motor** | `Python 3.12 recomendado` | Implementado (Base) | Lógica de integridad SHA-256, validación de rutas y protocolos. |
-| **API Local** | `FastAPI 0.115.0` | Implementado | Expone estado, inicialización SQLite, bandera de pausa y operaciones P2P. |
-| **Servidor ASGI** | `Uvicorn 0.30.6` | Implementado | Ejecuta la API local en `127.0.0.1:8080`. |
-| **Interfaz Web** | `HTML5 / CSS3 / JS` | En integración | Panel local con diagnóstico y transferencia manual. |
-| **Base de Datos** | `SQLite 3` | Implementado | Persistencia de las 6 tablas con `FOREIGN KEY` y `UNIQUE(id_carpeta, ruta_relativa)`. |
-| **Integridad** | `SHA-256 (hashlib)` | Implementado | Verificación criptográfica de archivos por bloques de 64 KB. |
-| **Pruebas** | `pytest 8.3.3` | Implementado | Validación automatizada de módulos, base de datos y API. |
-| **Servicio Linux** | `systemd` | Configurado (API) | Unidad de servicio para iniciar la API local con privilegios mínimos. |
-| **Comunicación P2P** | `Sockets TCP` | Implementado (manual) | Transferencia TCP y confirmación ACK; LAN pendiente de verificar. |
-| **Monitoreo FS** | `Watchdog 5.0.2` | Planificado (Fase 4) | Dependencia declarada; integración con eventos de disco en Fase 4. |
-| **Seguridad Red** | `TLS (ssl)` | Planificado (Fase 7) | Canal cifrado punto a punto entre nodos autorizados. |
-
----
-
-## 📂 10. Estructura de Carpetas del Repositorio
-
-```text
-LocalSync_SistemasOperativos_G1/
-│
-├── README.md
-├── LICENSE
-├── requirements.txt
-├── .gitignore
-├── subir_a_github.ps1
-├── subir_a_github.sh
-│
-├── config/
-│   ├── __init__.py
-│   ├── settings.py
-│   └── localsync.env.example
-│
-├── documentacion/
-│   ├── descripcion_proyecto.pdf
-│   ├── requerimientos.pdf
-│   ├── arquitectura_inicial.pdf
-│   ├── sistemas_operativos.pdf
-│   ├── modelo_relacional.pdf
-│   ├── tecnologias_herramientas.pdf
-│   ├── documento_tecnico_completo.pdf
-│   ├── levantamiento_informacion/
-│   │   └── levantamiento_necesidad_problematica.pdf
-│   └── diagramas/
-│       ├── arquitectura_inicial.png
-│       ├── estructura_producto.png
-│       ├── modelo_relacional_bd.png
-│       ├── Ficha_Tecnica_LocalSync.jpg
-│       └── fuentes_mermaid/
-│           ├── arquitectura_p2p.mmd
-│           ├── estructura_y_flujo.mmd
-│           ├── flujo_sincronizacion_8_etapas.mmd
-│           └── modelo_relacional.mmd
-│
-├── src/
-│   ├── __init__.py
-│   ├── backend/
-│   │   ├── __init__.py
-│   │   ├── api/
-│   │   │   ├── __init__.py
-│   │   │   └── routes.py
-│   │   ├── core/
-│   │   │   ├── __init__.py
-│   │   │   └── engine.py
-│   │   ├── network/
-│   │   │   ├── __init__.py
-│   │   │   └── p2p_socket.py
-│   │   └── storage/
-│   │       ├── __init__.py
-│   │       └── db_manager.py
-│   ├── frontend/
-│   │   ├── index.html
-│   │   ├── css/styles.css
-│   │   └── js/app.js
-│   └── bd/
-│       ├── schema.sql
-│       └── modelo_relacional_bd.png
-│
-├── recursos/
-│   ├── systemd/
-│   │   └── localsync.service
-│   └── imagenes/
-│       └── Ficha_Tecnica_LocalSync.jpg
-│
-├── scripts/
-│   ├── subir_a_github.ps1
-│   └── subir_a_github.sh
-│
-└── pruebas/
-    ├── __init__.py
-    └── test_integridad_y_rutas.py
+```mermaid
+flowchart LR
+    subgraph A["Equipo A (IP privada LAN)"]
+      UIA["Panel web :8080 (solo localhost)"]
+      APIA["FastAPI /api/lan"]
+      CLA["Cliente TCP"]
+      RECA["Receptor TCP :9001"]
+      FSA[("archivos_para_enviar / archivos_recibidos")]
+      UIA --> APIA
+      APIA --> CLA
+      APIA --> RECA
+      APIA --> FSA
+    end
+    subgraph LAN["LAN privada · TCP · HMAC / TLS opcional"]
+       TCP["Tramas JSON + bytes de archivo"]
+    end
+    subgraph B["Equipo B (IP privada LAN)"]
+      RECB["Receptor TCP :9001"]
+      FSB[("Carpeta autorizada")]
+      HASH["SHA-256 y publicación atómica"]
+      RECB --> HASH --> FSB
+    end
+    CLA --> TCP --> RECB
+    RECB -. "ACK o ERROR" .-> CLA
 ```
 
----
+El panel web funciona en `http://127.0.0.1:8080/`. **Nunca debe exponerse el panel HTTP a toda la LAN**: es el receptor **TCP** el que escucha en la red privada cuando seleccionas *modo LAN*.
 
-##  11. Requisitos de Hardware/Software e Instrucciones de Ejecución
+- **Frontend:** `src/frontend/index.html`, `css/styles.css`, `js/app.js`.
+- **API local:** `src/backend/api/routes.py`, `lan_routes.py` y ruta de compatibilidad `p2p_routes.py`.
+- **Red TCP:** `src/backend/network/cliente_tcp.py`, `p2p_socket.py`.
+- **Recepción segura:** `src/backend/network/transferencia.py`.
+- **Integridad y motor base:** `src/backend/core/engine.py`.
+- **SQLite:** `src/backend/storage/db_manager.py` y `src/bd/schema.sql`; su esquema **no** implica sincronización persistente implementada.
+
+Diagramas más detallados: [Arquitectura y flujos](documentacion/ARQUITECTURA.md) y [fuentes Mermaid editables](documentacion/diagramas/fuentes_mermaid/).
+
+## Tecnologías y requisitos
+
+| Componente | Tecnología |
+| --- | --- |
+| Motor TCP | Python 3.10+, `socket`, `threading`, `ssl`, `hashlib` y `hmac` |
+| API web | FastAPI y Uvicorn |
+| GUI | HTML, CSS y JavaScript (sin CDN para la interfaz) |
+| Metadatos | SQLite 3, esquema y funciones básicas |
+| Pruebas | `pytest`, `unittest`, Chrome/Playwright y GitHub Actions |
+| Entorno virtual | Docker Compose (opcional) |
+| Servicio Ubuntu | `systemd` (plantilla de despliegue) |
+
+**Puerto del panel:** `8080` (loopback). **Puerto del receptor TCP:** `9001` por defecto, configurable entre `1024` y `65535`. **Tamaño máximo:** `100 MiB por archivo`. **Bloques:** `64 KiB`. La GUI limita y valida entradas; el receptor verifica rutas y contenido.
+
+## Instalación y primer uso
+
+Clona el repositorio o abre la copia ya descargada, y actualiza `main`:
 
 ```bash
-cd LocalSync_SistemasOperativos_G1
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-
-# Ejecutar pruebas automatizadas (compatible con pytest y unittest)
-pytest -v
-python3 -m unittest discover -s pruebas -v
-
-# Iniciar API local FastAPI
-uvicorn src.backend.api.routes:app --host 127.0.0.1 --port 8080
+git switch main
+git pull origin main
 ```
+
+### Windows (PowerShell)
+
+Requisitos: Python 3.10+ con el lanzador `py` instalado.
+
+```powershell
+.\iniciar_localsync.bat
+```
+
+El iniciador crea `.venv`, instala `requirements.txt` en el primer inicio, ejecuta FastAPI y abre el navegador cuando `http://127.0.0.1:8080/` ya responde. **Docker Desktop no es obligatorio** para transferir archivos, solo para el laboratorio Docker.
+
+### Ubuntu
+
+Requisitos: `python3`, `python3-venv` y `python3-pip`.
+
+```bash
+sudo apt install -y python3-venv python3-pip
+bash iniciar_localsync.sh
+```
+
+El panel también puede arrancarse manualmente:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python -m uvicorn src.backend.api.routes:app --host 127.0.0.1 --port 8080
+```
+
+**API interactiva (Swagger):** `http://127.0.0.1:8080/docs`.
+
+### Uso desde la GUI
+
+1. En **Transferencias**, el equipo receptor selecciona **Red local (0.0.0.0)**, puerto `9001` y un **token compartido de al menos 16 caracteres** (mejor un secreto aleatorio largo).
+2. Pulsa **Iniciar receptor**. Averigua la dirección IPv4 privada del receptor (por ejemplo, `192.168.1.25`; sustituye la cifra de ejemplo).
+3. En el otro equipo, abre su panel local, escribe esa IP, el mismo puerto y el mismo token; pulsa **Comprobar conexión**.
+4. Selecciona **Archivos** o **Carpeta**, espera a que aparezcan en la bandeja y pulsa **Enviar** o **Enviar todos los archivos**.
+5. En el receptor, verifica el archivo en **Recibidos** y comprueba su SHA-256. Para enviar en dirección contraria, invierte los roles.
+
+**Dos equipos:** misma red privada; firewall TCP `9001` permitido **solo para la IP autorizada**. Evita Wi-Fi público y redes con aislamiento de clientes. HMAC **autentica, pero no cifra** los archivos: configura TLS si necesitas confidencialidad.
+
+Instrucciones detalladas, también para CLI: [Guía LAN y evidencias](pruebas/GUIA_PRUEBA_LAN.md) y [manual de operación](documentacion/MANUAL_USUARIO.md).
+
+## Transferencia entre dos computadores
+
+Se ha reportado funcionamiento en dos equipos físicos del proyecto. **Esa confirmación no sustituye anexar capturas fechadas ni hashes de esa sesión**.
+
+### Terminales sin GUI (Ubuntu)
+
+En el receptor, después de establecer `LOCALSYNC_AUTH_TOKEN` de manera privada:
+
+```bash
+python3 -m src.backend.network.p2p_socket --host 0.0.0.0 --port 9001 --directory archivos_recibidos
+```
+
+En el emisor, con el **mismo** secreto:
+
+```bash
+python3 -m src.backend.network.cliente_tcp --host 192.168.1.25 --port 9001
+python3 -m src.backend.network.cliente_tcp --host 192.168.1.25 --port 9001 --file ejemplo.txt --retries 2
+python3 -m src.backend.network.cliente_tcp --host 192.168.1.25 --port 9001 --directory carpeta_ejemplo --remote-prefix entregas
+```
+
+Las rutas e IP son ejemplos, no resultados reales. Comparar hashes con `sha256sum` (Ubuntu) o `Get-FileHash -Algorithm SHA256` (PowerShell).
+
+## Pruebas virtuales y físicas
+
+### Sin Docker (dos sockets locales)
+
+```bash
+python simulacion/demo_local.py
+```
+
+Valida dos servidores TCP diferentes en `localhost`, A → B, B → A, carpeta, integridad y conflicto. **No son dos computadores físicos ni dos contenedores separados.**
+
+### Con Docker (dos contenedores Linux)
+
+```bash
+python simulacion/demo.py
+python simulacion/demo.py --status
+python simulacion/demo.py --cleanup
+```
+
+Docker crea una red interna, dos volúmenes separados y nodos `nodo-a` / `nodo-b`. Verifica ambas transferencias y versiones. `--cleanup` **borra los volúmenes de prueba** del laboratorio.
+
+También se puede ejecutar desde **Laboratorio virtual** en la GUI, descargando un registro de evidencia.
+
+### Pruebas automáticas
+
+```bash
+python -m pytest -v
+python -m unittest discover -s pruebas -p "test_*.py" -v
+```
+
+En CI se ejecutan:
+
+- `.github/workflows/tests.yml`: matriz Windows y Ubuntu.
+- `.github/workflows/pruebas.yml`: pytest, sintaxis JS, simulación Docker, API del laboratorio y navegador Chrome; las pruebas Docker/navegador se habilitan en su propio job.
+
+Los resultados históricos están en [Actions](https://github.com/Codeforgeettttt/localsync-lan-engine_SistemasOperativos_G1/actions). Los resultados de CI **no prueban por sí solos el firewall o la LAN del laboratorio físico**.
+
+Consulta el [plan de pruebas, criterios y evidencias](documentacion/PRUEBAS_Y_VALIDACION.md).
+
+## Comandos para desarrolladores
+
+```bash
+git status
+git log --oneline --graph --all --max-count=20
+python -m pytest -v pruebas/test_panel_lan.py
+python -m pytest -v pruebas/test_lan_completo.py
+```
+
+Árbol funcional abreviado:
+
+```text
+LocalSync/
+├── README.md                          # Portada y guía del proyecto
+├── iniciar_localsync.bat / .sh        # Inicio Windows / Ubuntu
+├── requirements.txt
+├── config/                            # Configuración local
+├── src/
+│   ├── backend/api/                   # FastAPI, LAN y compatibilidad P2P
+│   ├── backend/network/               # Cliente, servidor TCP y receptor seguro
+│   ├── backend/core/                  # SHA-256, validador y estado base
+│   ├── backend/storage/               # Acceso a SQLite
+│   ├── bd/schema.sql                  # Modelo relacional
+│   └── frontend/                      # Panel HTML/CSS/JS
+├── simulacion/                        # Docker, prueba local y manual
+├── pruebas/                           # Unitarias, integración, navegador y Docker
+├── recursos/systemd/                  # Plantilla e instalación del servicio
+├── documentacion/                     # Documentos técnicos y fuentes Mermaid
+└── .github/workflows/                 # Integración continua
+```
+
+## Seguridad y manejo de errores
+
+- **Autenticación:** HMAC-SHA256 con reto aleatorio y token compartido. El secreto no debe incluirse en el repositorio.
+- **Confidencialidad:** TLS disponible **solo si se configura**. Sin TLS los bytes transferidos no están cifrados.
+- **Protección de rutas:** se rechazan rutas absolutas, segmentos `..` y enlaces simbólicos relevantes.
+- **Integridad:** primero se recibe a un archivo temporal, después se verifica SHA-256 y finalmente se publica mediante reemplazo atómico.
+- **Conflictos:** `keep-both` conserva el original; `reject` rechaza; `overwrite` reemplaza por decisión explícita.
+- **Fallos de red:** timeouts, conexión rechazada, autenticación fallida, ACK inválido y reintentos. Los reintentos **no** son reanudación por bytes.
+- **Panel administrativo:** HTTP limitado a `localhost`; no publicarlo en `0.0.0.0`.
+
+**Advertencia:** no enviar el puerto TCP a Internet, no usar el modo sin autenticación fuera de un laboratorio aislado, no subir `.env`, certificados privados ni tokens. Más casos y soluciones: [Seguridad, errores y límites](documentacion/SEGURIDAD_Y_ERRORES.md).
+
+## API, datos y límites
+
+La API moderna está bajo `/api/lan`. Endpoints representativos: `GET /estado`, `GET/POST /archivos`, `GET /descargar`, `POST /conexion`, `POST /enviar`, `POST /enviar-carpeta`, `POST /receptor/iniciar`, `POST /receptor/detener`, `GET /simulacion/estado` y `POST /simulacion/iniciar`. Incluye operaciones para verificar, renombrar y eliminar **archivos locales**. El `/api/p2p` anterior se mantiene por compatibilidad con una restricción adicional de par LAN (`LOCALSYNC_PAR_LAN`).
+
+**SQLite:** hay seis tablas principales (nodos, carpetas, archivos, versiones, cola y auditoría) y métodos básicos de consulta/inserción. **La transferencia por TCP no alimenta automáticamente ese historial ni ejecuta la cola SQLite**; el historial visible del panel es en memoria.
+
+Consulta [referencia completa de API](documentacion/API_Y_DATOS.md) y [protocolo TCP](documentacion/PROTOCOLO_TCP.md).
+
+## Control de versiones
+
+- Rama estable: `main`. Se trabajó el motor, GUI y laboratorio en la rama `feature/motor-p2p-pruebas`.
+- El [pull request #1](https://github.com/Codeforgeettttt/localsync-lan-engine_SistemasOperativos_G1/pull/1) se integró a `main` el **18 de noviembre de 2026**, después de resolver conflictos y pasar las pruebas.
+- Git registra cambios con commits `feat`, `fix`, `test`, `docs` y `ci`.
+- **No confundir** la versión interna de FastAPI con un tag o un release de GitHub. La estrategia de etiquetado se propone en la documentación, pero no se atribuyen publicaciones no verificadas.
+- La **versión de cada archivo recibido** se conserva mediante el sufijo `.conflict-<sha12>`. Esto es diferente al versionado del **código fuente con Git**.
+
+Procedimiento, convenciones, historial trazable y propuesta de versiones: [CONTROL_DE_VERSIONES.md](documentacion/CONTROL_DE_VERSIONES.md).
+
+## Documentación técnica
+
+| Documento | Contenido |
+| --- | --- |
+| [ARQUITECTURA.md](documentacion/ARQUITECTURA.md) | Arquitectura, componentes, despliegue, diagramas y decisiones |
+| [PROTOCOLO_TCP.md](documentacion/PROTOCOLO_TCP.md) | Tramas, autenticación, ACK, recepción, conflictos y flujos |
+| [API_Y_DATOS.md](documentacion/API_Y_DATOS.md) | API REST, contratos, SQLite y matriz implementado/pendiente |
+| [MANUAL_USUARIO.md](documentacion/MANUAL_USUARIO.md) | Instalación, GUI, operación y transferencia en LAN |
+| [SEGURIDAD_Y_ERRORES.md](documentacion/SEGURIDAD_Y_ERRORES.md) | Amenazas, validaciones, errores y resolución |
+| [PRUEBAS_Y_VALIDACION.md](documentacion/PRUEBAS_Y_VALIDACION.md) | Plan de pruebas, automatización y evidencia física |
+| [CONTROL_DE_VERSIONES.md](documentacion/CONTROL_DE_VERSIONES.md) | Ramas, commits, historial, tags y flujo de revisión |
+| [CHANGELOG.md](CHANGELOG.md) | Registro resumido de cambios verificables |
+| [Fuentes Mermaid](documentacion/diagramas/fuentes_mermaid/) | Diagramas editables de diseño e implementación |
+| [Guía de laboratorio Docker](simulacion/README.md) | Simulación reproducible de dos nodos Linux |
+| [Instalación opcional systemd](recursos/systemd/INSTALACION_TCP.md) | Servicio de recepción TCP en Ubuntu |
+
+**Nota de trazabilidad:** los PDFs e imágenes históricas en `documentacion/` reflejan etapas de planificación y pueden contener estados anteriores. Para el comportamiento actual, prevalecen el código, las pruebas y los documentos Markdown enlazados arriba.
 
 ---
 
-##  12. Cronograma y Próximos Pasos (Plan de 8 Fases)
-
-1. **Fase 1 (Semana 1) — Investigación, Diseño y Estructuración [BASE IMPLEMENTADA]**
-2. **Fase 2 (Semana 2) — Entorno Linux LAN**
-3. **Fase 3 (Semana 3) — Red P2P por Sockets TCP**
-4. **Fase 4 (Semana 4) — Motor de Sincronización (`Watchdog`)**
-5. **Fase 5 (Semana 5) — Recuperación y Tolerancia a Fallos**
-6. **Fase 6 (Semana 6) — Integración Completa de la Interfaz Web**
-7. **Fase 7 (Semana 7) — Seguridad Operativa (`TLS` y `systemd`)**
-8. **Fase 8 (Semana 8) — Evaluación Experimental**
+**Licencia:** consultar [LICENSE](LICENSE). **Uso previsto:** académico y LAN confiable; no exponer como servicio público sin revisión adicional de seguridad.
