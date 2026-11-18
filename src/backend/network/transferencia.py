@@ -55,7 +55,7 @@ def _destino_conflicto(destino: Path, sha_nuevo: str) -> Path:
 
 
 def recibir_archivo(conexion, mensaje: dict, carpeta_autorizada: str | Path,
-                    on_conflict: str = "keep-both") -> Path:
+                    on_conflict: str = "keep-both", on_before_overwrite=None) -> Path:
     """Recibe el contenido exacto, valida SHA-256 y publica sin pérdida silenciosa.
 
     En caso de un nombre existente con hash distinto, guarda una copia .conflict-*
@@ -102,6 +102,8 @@ def recibir_archivo(conexion, mensaje: dict, carpeta_autorizada: str | Path,
                     return destino  # recepción repetida sin modificar el archivo.
                 if on_conflict == "reject":
                     raise FileExistsError("Archivo distinto con el mismo nombre; envío rechazado.")
+                if on_conflict == "overwrite" and on_before_overwrite is not None:
+                    on_before_overwrite(destino)
                 if on_conflict == "keep-both":
                     destino = _destino_conflicto(destino, sha_recibido)
                     if destino.is_file() and calcular_sha256(destino) == sha_recibido:
