@@ -62,6 +62,7 @@ class Envio(NodoDestino):
 class EnvioCarpeta(NodoDestino):
     subcarpeta: str = Field(default="", max_length=512)
     prefijo: str = Field(default="", max_length=128)
+    reanudar: bool = False
 
 
 class GestionArchivo(BaseModel):
