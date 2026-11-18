@@ -1,62 +1,79 @@
-# Integración API, frontend y nodos
+# Integración entre interfaz, API y transporte TCP
 
-## Arquitectura actual
+**Documento actualizado al código fusionado en `main`, 18-11-2026.**
+
+> Este archivo sustituye la descripción del panel antiguo y de los datos de demostración. La aplicación actual permite **transferencia TCP real manual**. La sincronización automática y la cola persistente aún no están implementadas.
+
+## Componentes y límites
 
 ```mermaid
 flowchart LR
-  UI[Panel HTML CSS JS] --> API[FastAPI localhost]
-  API --> DB[SQLite]
-  API --> TCP[Cliente TCP]
-  TCP --> N[Nodo receptor]
-  N --> SHA[Verificación SHA-256 y rutas]
-  SHA --> FS[Carpeta autorizada]
+    UI["GUI HTML/CSS/JS"] -->|"fetch HTTP localhost :8080"| API["FastAPI /api/lan"]
+    API --> UP["Bandeja archivos_para_enviar"]
+    API --> TX["Cliente TCP"]
+    API --> RXA["Receptor local TCP :9001"]
+    TX -->|"Red LAN privada + HMAC; TLS opcional"| RXB["Receptor TCP otro equipo"]
+    RXB --> SHA["Ruta segura + SHA-256"]
+    SHA --> FS["Carpeta recibidos"]
+    API -. "Esquema / diagnóstico" .-> BD[("SQLite local")]
 ```
 
-## Contrato REST
+**No confundir:**
+- Los eventos del panel se registran **en RAM**.
+- Las tablas SQLite existen, pero el envío de archivos **no registra automáticamente** una transacción persistente.
+- La API HTTP está confinada a localhost. La conexión de red real viaja por el canal **TCP 9001**, separado.
+- La ruta heredada `/api/p2p` tiene restricciones adicionales de destinatario; para la GUI actual se utiliza `/api/lan`.
 
-| Método | Ruta | Función |
+## Contratos más importantes
+
+| Operación GUI | Endpoint FastAPI | Motor |
 | --- | --- | --- |
-| GET | /api/estado | Diagnóstico, componentes y SQLite |
-| POST | /api/inicializar-bd | Inicializa esquema |
-| POST | /api/control/pausa | Bandera en memoria; no pausa TCP |
-| GET | /api/p2p/conexion?host=127.0.0.1&puerto=9001 | PING/ACK |
-| POST | /api/p2p/enviar | JSON con nombre, host y puerto |
+| Estado/receptor | `GET /api/lan/estado` | `lan_routes.py` |
+| Detectar IP | `GET /api/lan/red` | `lan_routes.py` |
+| Preparar archivos | `POST /api/lan/archivos` | Upload a bandeja local |
+| Comprobar nodo | `POST /api/lan/conexion` | `comprobar_conexion` (PING/ACK) |
+| Enviar uno | `POST /api/lan/enviar` | `enviar_archivo` |
+| Enviar carpeta | `POST /api/lan/enviar-carpeta` | `enviar_carpeta` |
+| Iniciar/detener receptor | `POST /api/lan/receptor/iniciar` / `detener` | `NodoP2PTCP.servir` |
+| Verificar/renombrar/eliminar | `GET /api/lan/archivo/verificar` / `PATCH` / `DELETE /api/lan/archivo` | Gestión local |
+| Simulación virtual | `POST /api/lan/simulacion/iniciar` | `simulacion/demo.py` |
+| Prueba local sin Docker | `POST /api/lan/simulacion/local` | `simulacion/demo_local.py` |
+| Guardar evidencia virtual | `GET /api/lan/simulacion/evidencia` | Texto de logs de sesión |
 
-Swagger: http://127.0.0.1:8080/docs.
+Para campos, validaciones y códigos HTTP: [API_Y_DATOS.md](API_Y_DATOS.md).
 
-## Requisitos y ejecución
-Python 3.12 recomendado, dependencias de requirements.txt, terminales y navegador. Ejecutar desde la raíz. En Windows:
+## Ejecución actual
+
+En Windows, desde la raíz:
 
 ```powershell
-py -3.12 -m pip install -r requirements.txt
-New-Item -ItemType Directory -Force archivos_para_enviar
-Set-Content archivos_para_enviar/prueba.txt "LocalSync"
-py -3.12 -m unittest discover -s pruebas -p "test_*.py" -v
+.\iniciar_localsync.bat
 ```
 
-Terminal receptora:
-```powershell
-py -3.12 -m src.backend.network.p2p_socket --directory recibidos
+En Ubuntu:
+
+```bash
+bash iniciar_localsync.sh
 ```
 
-Terminal API:
-```powershell
-py -3.12 -m uvicorn src.backend.api.routes:app --host 127.0.0.1 --port 8080
+El navegador abre `http://127.0.0.1:8080/`. El motor receptor debe iniciarse desde la pestaña **Transferencias**; al seleccionar modo LAN exige token compartido de longitud mínima. Abrir TCP 9001 en firewall para la IP del otro computador (solo en red privada). Para emitir, preparar el archivo desde la GUI, configurar IP/puerto/token del receptor y pulsar **Enviar**.
+
+## Verificación
+
+```bash
+python -m pytest -v
+python simulacion/demo_local.py
+# Requiere Docker Desktop o Docker Engine Linux:
+python simulacion/demo.py
 ```
 
-En Ubuntu, crear entorno virtual con Python 3.12, activarlo, instalar requirements.txt y utilizar python en lugar de py -3.12. Abrir http://127.0.0.1:8080, comprobar conexión y enviar prueba.txt. Verificar contenido y hash. Usar un nombre nuevo si el receptor ya tiene el archivo.
+En los dos computadores reales: registrar ACK, archivo recibido y **hash SHA-256 igual** en ambos. El equipo reportó una prueba física funcional; completar acta de evidencias sin inventar valores: [PRUEBAS_Y_VALIDACION.md](PRUEBAS_Y_VALIDACION.md).
 
-## Prueba LAN pendiente de coordinación
+## Alcance y documentación vigente
 
-No exponer a Internet ni redes compartidas: el protocolo no tiene TLS ni autenticación. Usar dos equipos o máquinas virtuales en una red aislada. Acordar IP privada del receptor y puerto con Valery. En el receptor iniciar el servidor con --host seguido de su IPv4 privada y --port seguido del puerto acordado. Limitar firewall al equipo emisor. En la terminal de la API definir LOCALSYNC_PAR_LAN con la IP privada acordada antes de iniciar Uvicorn (PowerShell: $env:LOCALSYNC_PAR_LAN = "192.168.1.20"; Linux: export LOCALSYNC_PAR_LAN=192.168.1.20). Sustituir la IP de ejemplo. Conservar API en localhost. Introducir IP y puerto en panel.
+- El transporte manual, HMAC, integridad y GUI están implementados.
+- TLS está disponible **opcionalmente** y requiere certificados para activarse.
+- No hay observador Watchdog activo, replicación automática, `MODIFY`/`DELETE` remotos, cola persistente ni reanudación parcial.
+- Los diseños PDF y las capturas de fases anteriores se conservan como historial, **no reemplazan el estado actual**.
 
-## Evidencias para auditoría (pendientes de tomar)
-- Panel actualizado y estado SQLite antes/después de inicializar.
-- Swagger y respuesta de conexión.
-- Envío exitoso, archivo recibido y hashes coincidentes.
-- Consola de pruebas automatizadas y prueba con destino no autorizado.
-- Prueba entre dos equipos Ubuntu: IP, puerto y resultados de ambos.
-- Registrar fecha, versión/commit y resultado real de cada prueba.
-
-## Límites
-No declarar sincronización automática, TLS, historial persistente de transferencias ni pruebas LAN aprobadas hasta implementarlas y verificarlas. La autorización de destino mediante variable de entorno no autentica al receptor. Los cambios de esta rama requieren pruebas locales antes de fusionarse.
+Diagramas: [ARQUITECTURA.md](ARQUITECTURA.md), [fuentes Mermaid](diagramas/fuentes_mermaid/). Protocolo: [PROTOCOLO_TCP.md](PROTOCOLO_TCP.md). Seguridad: [SEGURIDAD_Y_ERRORES.md](SEGURIDAD_Y_ERRORES.md).
