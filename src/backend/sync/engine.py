@@ -45,7 +45,7 @@ class ColaPersistente:
         self.path = Path(db)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.lock = threading.RLock()
-        with self._open() as con:
+        with closing(self._open()) as con, con:
             con.executescript("""
                 CREATE TABLE IF NOT EXISTS sync_peers(
                   id INTEGER PRIMARY KEY, host TEXT NOT NULL, port INTEGER NOT NULL,
@@ -80,14 +80,14 @@ class ColaPersistente:
             return [dict(row) for row in con.execute("SELECT * FROM sync_peers ORDER BY id")]
 
     def add_peer(self, host: str, port: int):
-        with self.lock, self._open() as con:
+        with self.lock, closing(self._open()) as con, con:
             con.execute("INSERT INTO sync_peers(host,port,enabled) VALUES(?,?,1) "
                         "ON CONFLICT(host,port) DO UPDATE SET enabled=1", (host, port))
             return int(con.execute("SELECT id FROM sync_peers WHERE host=? AND port=?",
                                    (host, port)).fetchone()[0])
 
     def remove_peer(self, peer_id: int):
-        with self.lock, self._open() as con:
+        with self.lock, closing(self._open()) as con, con:
             con.execute("DELETE FROM sync_queue WHERE peer_id=?", (peer_id,))
             con.execute("DELETE FROM sync_peers WHERE id=?", (peer_id,))
 
@@ -96,18 +96,18 @@ class ColaPersistente:
             return {r["path"]: dict(r) for r in con.execute("SELECT * FROM sync_files")}
 
     def set_file(self, path: str, sha: str, size: int, mtime_ns: int):
-        with self.lock, self._open() as con:
+        with self.lock, closing(self._open()) as con, con:
             con.execute("INSERT INTO sync_files VALUES(?,?,?,?) ON CONFLICT(path) "
                         "DO UPDATE SET sha256=excluded.sha256,size=excluded.size,"
                         "mtime_ns=excluded.mtime_ns", (path, sha, size, mtime_ns))
 
     def del_file(self, path: str):
-        with self.lock, self._open() as con:
+        with self.lock, closing(self._open()) as con, con:
             con.execute("DELETE FROM sync_files WHERE path=?", (path,))
 
     def enqueue(self, peer_id: int, path: str, op: str, sha: str = ""):
         _safe_relative(path)
-        with self.lock, self._open() as con:
+        with self.lock, closing(self._open()) as con, con:
             con.execute("""INSERT INTO sync_queue(peer_id,path,operation,sha256,created_at)
                          VALUES(?,?,?,?,?)
                          ON CONFLICT(peer_id,path) DO UPDATE SET
@@ -125,12 +125,12 @@ class ColaPersistente:
             return dict(row) if row else None
 
     def finish(self, job_id: int):
-        with self.lock, self._open() as con:
+        with self.lock, closing(self._open()) as con, con:
             con.execute("DELETE FROM sync_queue WHERE id=?", (job_id,))
 
     def fail(self, job_id: int, attempts: int, message: str):
         delay = min(2 ** min(attempts, 7), 120)
-        with self.lock, self._open() as con:
+        with self.lock, closing(self._open()) as con, con:
             con.execute("UPDATE sync_queue SET tries=?,state='pending',next_run=?,error=? "
                         "WHERE id=?", (attempts, time.time()+delay, message[:300], job_id))
 
@@ -143,7 +143,7 @@ class ColaPersistente:
             return {"pendientes": n, "con_errores": failed, "cola": recent}
 
     def add_version(self, path: str, sha: str, backup: str):
-        with self.lock, self._open() as con:
+        with self.lock, closing(self._open()) as con, con:
             con.execute("INSERT INTO sync_versions(path,sha256,backup,created_at) VALUES(?,?,?,?)",
                         (path, sha, backup, utc()))
 
