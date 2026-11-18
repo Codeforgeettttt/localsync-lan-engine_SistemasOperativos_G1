@@ -1,0 +1,27 @@
+[Unit]
+Description=LocalSync LAN Engine - panel local y sincronizacion automatica
+Documentation=https://github.com/Codeforgeettttt/localsync-lan-engine_SistemasOperativos_G1
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=localsync
+Group=localsync
+WorkingDirectory=/opt/localsync
+EnvironmentFile=/etc/localsync/autosync.env
+ExecStart=/opt/localsync/.venv/bin/python -m uvicorn src.backend.api.routes:app --host 127.0.0.1 --port 8080
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/localsync
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target
