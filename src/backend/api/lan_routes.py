@@ -72,6 +72,7 @@ class RenombrarArchivo(GestionArchivo):
 
 
 class InicioReceptor(BaseModel):
+    permitir_borrado: bool = False
     modo_lan: bool = False
     puerto: int = Field(default=9001, ge=1024, le=65535)
     token: str = Field(default="", max_length=256)
@@ -364,11 +365,14 @@ def iniciar_receptor(datos: InicioReceptor):
             raise HTTPException(409, "El receptor ya está encendido.")
         host = "0.0.0.0" if datos.modo_lan else "127.0.0.1"
         token = _token(datos.token)
+        if datos.permitir_borrado and (not token or len(token) < 16):
+            raise HTTPException(400, "Borrado remoto requiere token de al menos 16 caracteres")
         if datos.modo_lan and (not token or len(token) < 16):
             raise HTTPException(400, "Para habilitar LAN configura un token compartido de al menos 16 caracteres.")
         try:
             nodo = NodoP2PTCP(
                 host, datos.puerto, RECIBIDOS, auth_token=token,
+                allow_delete=datos.permitir_borrado,
                 on_received=lambda destino, msg: _evento(
                     "RECEPCION_OK",
                     f"{destino.name} · {msg['tamano_bytes']} bytes · SHA-256 {msg['hash_sha256'][:16]}…"),
