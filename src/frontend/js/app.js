@@ -137,23 +137,59 @@
     const info = document.createElement("div"); info.className = "file-meta";
     const name = document.createElement("div"); name.className = "file-name";
     name.textContent = file.ruta; name.title = file.ruta;
-    const size = document.createElement("small"); size.textContent = bytes(file.tamano);
-    info.append(name,size);
-    if (received) {
-      const link = document.createElement("a"); link.className = "btn btn-outline btn-small";
-      link.textContent = "↓ Descargar";
-      link.href = "/api/lan/descargar?ruta="+encodeURIComponent(file.ruta);
-      row.append(glyph,info,link);
-    } else {
-      const button = document.createElement("button"); button.className = "btn btn-outline btn-small";
-      button.textContent = "Enviar";
-      button.addEventListener("click",() => action(button,async () => {
-        const result = await post("/api/lan/enviar",{...endpoint(),ruta:file.ruta,reintentos:1});
-        notify("Enviado con ACK. SHA-256: "+result.sha256.slice(0,16)+"…");
-        await loadLAN(); await refreshFiles();
-      }));
-      row.append(glyph,info,button);
+    const detail = document.createElement("small"); detail.textContent = bytes(file.tamano);
+    info.append(name,detail);
+    const buttons = document.createElement("div"); buttons.className = "file-actions";
+    const bandeja = received ? "recibidos" : "envios";
+    function makeButton(text, callback, danger = false) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = danger ? "btn btn-small btn-danger" : "btn btn-outline btn-small";
+      button.textContent = text;
+      button.addEventListener("click", () => action(button, callback));
+      buttons.append(button);
     }
+    if (received) {
+      const link = document.createElement("a");
+      link.className = "btn btn-outline btn-small"; link.textContent = "↓ Descargar";
+      link.href = "/api/lan/descargar?ruta=" + encodeURIComponent(file.ruta);
+      buttons.append(link);
+    } else {
+      makeButton("⇧ Enviar", async () => {
+        const result = await post("/api/lan/enviar", {...endpoint(),ruta:file.ruta,reintentos:2});
+        notify("Envío completado con ACK. SHA-256: " + result.sha256.slice(0,16) + "…");
+        await loadLAN(); await refreshFiles();
+      });
+    }
+    makeButton("✓ SHA-256", async () => {
+      const r = await api("/api/lan/archivo/verificar?bandeja=" + bandeja +
+        "&ruta=" + encodeURIComponent(file.ruta));
+      detail.textContent = bytes(r.tamano) + " · SHA-256: " + r.sha256;
+      detail.title = r.sha256;
+      notify("Integridad calculada correctamente.");
+    });
+    makeButton("✎ Renombrar", async () => {
+      const actual = file.ruta.split("/").pop();
+      const nuevo = window.prompt("Nuevo nombre (sin carpetas):",actual);
+      if (nuevo === null) return;
+      if (!nuevo.trim() || nuevo === actual) return;
+      const result = await api("/api/lan/archivo", {
+        method:"PATCH", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({bandeja,ruta:file.ruta,nuevo_nombre:nuevo.trim()})
+      });
+      notify("Archivo renombrado: "+result.ruta);
+      await refreshFiles(); await loadLAN();
+    });
+    makeButton("Eliminar", async () => {
+      if (!window.confirm("¿Eliminar de "+bandeja+" el archivo "+file.ruta+"? Esta acción no se puede deshacer.")) return;
+      await api("/api/lan/archivo",{
+        method:"DELETE",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({bandeja,ruta:file.ruta})
+      });
+      notify("Archivo eliminado: "+file.ruta);
+      await refreshFiles(); await loadLAN();
+    },true);
+    row.append(glyph,info,buttons);
     return row;
   }
   async function refreshFiles() {
