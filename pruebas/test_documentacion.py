@@ -14,6 +14,7 @@ DOCUMENTOS = [
     "README.md",
     "CHANGELOG.md",
     "documentacion/ARQUITECTURA.md",
+    "documentacion/DESPLIEGUE_FINAL.md",
     "documentacion/REQUISITOS_Y_TRAZABILIDAD.md",
     "documentacion/PROTOCOLO_TCP.md",
     "documentacion/API_Y_DATOS.md",
