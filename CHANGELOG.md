@@ -1,6 +1,26 @@
 # Historial de cambios — LocalSync
 
-Registro técnico de modificaciones comprobables del repositorio, siguiendo una convención inspirada en **Keep a Changelog**. La etiqueta `0.3.0-lan` es la **versión interna actual de la API FastAPI**; no debe interpretarse como un tag o release publicado si no aparece así en GitHub.
+Registro técnico de modificaciones comprobables del repositorio, siguiendo una convención inspirada en **Keep a Changelog**. La etiqueta `0.4.0-sync` es la **versión interna actual de la API FastAPI**; no debe interpretarse como un tag o release publicado si no aparece así en GitHub.
+
+## [0.4.0-sync (versión interna)] — 2026-11-18: sincronización automática y despliegue
+
+### Añadido
+- Motor Watchdog con escaneo periódico para detectar cambios.
+- Cola SQLite persistente con reintentos exponenciales tras desconexión.
+- Sincronización de carpetas en ambos sentidos por pares autorizados, con supresión de rebotes.
+- Negociación de offset `CREATE_RESUME`, temporales recuperables y SHA-256 final.
+- Respaldos por hash y restauración desde la GUI; se protege el estado anterior al restaurar.
+- Búsqueda LAN por UDP/HMAC sin autorizar pares automáticamente.
+- Borrados remotos autenticados y opcionales, con papelera recuperable.
+- Nueva pestaña de Sincronización y modo de carpeta compartida; autostart opcional y servicio systemd.
+- Laboratorio Docker de dos nodos sincronizados y pruebas Windows, Ubuntu y Chrome.
+- Manual `documentacion/DESPLIEGUE_FINAL.md` para ponerlo en operación.
+
+### Limitaciones
+- TLS requiere certificados; no se activa por defecto.
+- No existe consenso de ediciones exactamente simultáneas entre nodos.
+- Los parciales abandonados y versiones antiguas no tienen limpieza/retención automatizada.
+- El funcionamiento del servicio systemd y de la nueva sincronización debe comprobarse en las PC reales después de instalar.
 
 ## [Sin etiqueta de release] — 2026-11-18: consolidación de documentación
 
@@ -16,7 +36,7 @@ Registro técnico de modificaciones comprobables del repositorio, siguiendo una 
 ### Alcance
 Son cambios de **documentación**. No constituyen por sí solos una nueva funcionalidad del motor ni un cambio de la versión interna de FastAPI.
 
-## [0.3.0-lan (versión interna)] — Integración del PR #1, 2026-11-18
+## [0.3.0-lan (versión histórica interna)] — Integración del PR #1, 2026-11-18
 
 ### Añadido
 - Servidor y cliente TCP para transferencias de archivos por LAN.
