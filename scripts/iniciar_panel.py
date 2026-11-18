@@ -1,6 +1,8 @@
 """Inicia FastAPI y abre el navegador solo cuando la GUI responde HTTP 200."""
 from __future__ import annotations
 
+import sys
+from pathlib import Path
 import threading
 import time
 import urllib.error
@@ -8,6 +10,12 @@ import urllib.request
 import webbrowser
 
 import uvicorn
+
+# Al ejecutar 'python scripts/iniciar_panel.py', Python añade /scripts a sys.path,
+# pero no siempre la raíz que contiene los paquetes 'src' y 'config'.
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 URL = "http://127.0.0.1:8080/"
 
