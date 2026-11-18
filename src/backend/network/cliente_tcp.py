@@ -127,6 +127,31 @@ def enviar_archivo(ruta_archivo: str | Path, host: str, puerto: int = DEFAULT_PO
     return False
 
 
+
+def enviar_borrado(ruta_remota: str, host: str, puerto: int = DEFAULT_PORT,
+                   *, auth_token: str, timeout: float = 5.0,
+                   tls_ca: str | None = None, tls_server_name: str | None = None) -> bool:
+    """Solicita mover a papelera remota un archivo; el servidor debe autorizar DELETE.
+
+    Nunca envía DELETE sin HMAC. Un borrado repetido es idempotente.
+    """
+    _validar_destino(host, puerto, timeout)
+    if not auth_token or len(auth_token) < 16:
+        raise PermissionError("DELETE remoto requiere token compartido.")
+    from .transferencia import _ruta_segura
+    # Validación independiente del destino para rechazar rutas peligrosas.
+    _ruta_segura(Path.cwd(), ruta_remota)
+    protocolo = NodoP2PTCP(host="127.0.0.1", port=puerto)
+    with _conectar(host, puerto, timeout, tls_ca, tls_server_name) as conexion:
+        _autenticar(conexion, protocolo, auth_token)
+        protocolo.enviar_trama(conexion, protocolo.crear_mensaje_control(
+            "DELETE", ruta_remota, "0" * 64, 0))
+        ack = _validar_ack(protocolo, conexion)
+        if ack["ruta_relativa"] != ruta_remota:
+            raise ValueError("Confirmación DELETE no coincide con la ruta solicitada")
+    return True
+
+
 def enviar_carpeta(directorio: str | Path, host: str, puerto: int = DEFAULT_PORT,
                    *, timeout: float = 15.0, auth_token: str | None = None,
                    tls_ca: str | None = None, tls_server_name: str | None = None,
