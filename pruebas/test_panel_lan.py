@@ -47,7 +47,9 @@ class TestPanelLAN(unittest.TestCase):
         estado = self.client.get("/api/estado")
         self.assertEqual(estado.status_code, 200)
         self.assertIn("transferencia_tcp_manual", estado.json()["componentes_implementados"])
-        self.assertIn("monitoreo_watchdog_inotify", estado.json()["componentes_pendientes"])
+        self.assertIn("watchdog", estado.json()["componentes_implementados"])
+        self.assertIn("reanudacion_por_offset", estado.json()["componentes_implementados"])
+        self.assertIn("estado_motor_autosync", estado.json())
 
     def test_carga_rechaza_traversal_y_host_externo(self):
         r = self.client.post("/api/lan/archivos",
