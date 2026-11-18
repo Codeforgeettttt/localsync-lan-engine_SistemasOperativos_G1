@@ -30,18 +30,18 @@ La etiqueta interna `0.3.0-lan` aparece en el objeto FastAPI (`src/backend/api/r
 ```mermaid
 gitGraph
     commit id: "base"
-    branch feature/motor-p2p-pruebas
-    checkout feature/motor-p2p-pruebas
+    branch feature_motor_p2p
+    checkout feature_motor_p2p
     commit id: "TCP y SHA"
     commit id: "HMAC y TLS"
     commit id: "GUI y API"
     commit id: "simulaciones y tests"
     checkout main
     commit id: "mejoras y docs"
-    checkout feature/motor-p2p-pruebas
+    checkout feature_motor_p2p
     merge main id: "resolver conflictos"
     checkout main
-    merge feature/motor-p2p-pruebas id: "PR 1"
+    merge feature_motor_p2p id: "PR 1"
     commit id: "docs actualizadas"
 ```
 
