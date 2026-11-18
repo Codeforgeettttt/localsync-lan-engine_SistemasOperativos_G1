@@ -36,6 +36,7 @@ router = APIRouter(prefix="/api/lan", tags=["Control LAN y laboratorio virtual"]
 ENVIO = BASE_DIR / "archivos_para_enviar"
 RECIBIDOS = BASE_DIR / "archivos_recibidos"
 DEMO = BASE_DIR / "simulacion" / "demo.py"
+DEMO_LOCAL = BASE_DIR / "simulacion" / "demo_local.py"
 
 _mutex = threading.RLock()
 _receiver: dict = {"nodo": None, "thread": None, "stop": None, "host": None, "port": None, "error": ""}
@@ -405,7 +406,8 @@ def estado_demo():
 def _ejecutar_demo(accion: str):
     env = os.environ.copy()
     env.setdefault("LOCALSYNC_AUTH_TOKEN", secrets.token_hex(32))
-    comando = [sys.executable, "-u", str(DEMO)]
+    script = DEMO_LOCAL if accion == "local" else DEMO
+    comando = [sys.executable, "-u", str(script)]
     if accion == "limpiar":
         comando.append("--cleanup")
     try:
@@ -434,10 +436,11 @@ def _ejecutar_demo(accion: str):
 
 
 def _iniciar_demo(accion: str):
-    if not shutil.which("docker"):
-        raise HTTPException(503, "No se encontró Docker. Inicia Docker Desktop e inténtalo otra vez.")
-    if not DEMO.is_file():
-        raise HTTPException(500, "Falta simulacion/demo.py en el proyecto.")
+    if accion != "local" and not shutil.which("docker"):
+        raise HTTPException(503, "Docker no está disponible. Inicia Docker Desktop o usa la prueba local sin Docker.")
+    script = DEMO_LOCAL if accion == "local" else DEMO
+    if not script.is_file():
+        raise HTTPException(500, "No se encontró el programa de simulación.")
     with _demo_lock:
         if _demo_state["estado"] == "ejecutando":
             raise HTTPException(409, "Ya hay una operación Docker en curso.")
@@ -454,6 +457,11 @@ def _iniciar_demo(accion: str):
 @router.post("/simulacion/iniciar")
 def iniciar_demo():
     return _iniciar_demo("ejecutar")
+
+
+@router.post("/simulacion/local")
+def iniciar_demo_local():
+    return _iniciar_demo("local")
 
 
 @router.post("/simulacion/limpiar")
