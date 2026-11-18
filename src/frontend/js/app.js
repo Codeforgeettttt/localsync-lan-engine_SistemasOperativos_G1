@@ -380,6 +380,37 @@
     $("remoteHost").addEventListener("change",() =>
       $("topologyRemote").textContent=$("remoteHost").value+" : "+$("remotePort").value);
     $("checkConnection").addEventListener("click",() => action($("checkConnection"),checkConnection));
+
+    $("discoverPeers").addEventListener("click",()=>action($("discoverPeers"),async()=>{
+      const token=$("sharedToken").value;
+      if(!token || token.length<16)throw new Error("Introduce primero el token compartido (16+ caracteres).");
+      $("connectionMessage").textContent="Buscando receptores de confianza en la LAN (UDP 9002)…";
+      const result=await post("/api/lan/descubrir",{host:"127.0.0.1",puerto:9001,token});
+      const target=$("discoveredPeers");target.replaceChildren();
+      if (!result.equipos.length) {
+        empty(target,"No se encontraron receptores con este token. Revisa la red y UDP 9002; puedes introducir la IP manualmente.");
+        $("connectionMessage").textContent="Búsqueda finalizada: sin equipos detectados.";
+        return;
+      }
+      for (const peer of result.equipos) {
+        const row=document.createElement("button");
+        row.type="button";row.className="quick-action";
+        const label=document.createElement("span");
+        label.textContent=peer.nombre+" · "+peer.host+":"+peer.puerto;
+        const hint=document.createElement("span");hint.className="quick-arrow";hint.textContent="↗";
+        row.append(label,hint);
+        row.addEventListener("click",()=>{
+          $("remoteHost").value=peer.host;
+          $("remotePort").value=String(peer.puerto);
+          $("syncHost").value=peer.host;
+          $("syncPort").value=String(peer.puerto);
+          notify("Nodo seleccionado; prueba la conexión antes de transferir.");
+        });
+        target.append(row);
+      }
+      $("connectionMessage").textContent=result.equipos.length+" receptor(es) detectado(s) con la misma clave.";
+    }));
+
     $("startReceiver").addEventListener("click",() => action($("startReceiver"),startReceiver));
     $("stopReceiver").addEventListener("click",() => action($("stopReceiver"),async () => {
       await post("/api/lan/receptor/detener");notify("Receptor detenido.");await loadLAN();
