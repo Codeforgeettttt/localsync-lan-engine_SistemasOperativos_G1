@@ -2,7 +2,7 @@
 
 **Documento actualizado al código fusionado en `main`, 18-11-2026.**
 
-> Este archivo sustituye la descripción del panel antiguo y de los datos de demostración. La aplicación actual permite **transferencia TCP real manual**. La sincronización automática y la cola persistente aún no están implementadas.
+> Este archivo sustituye la descripción del panel antiguo y de los datos de demostración. La aplicación incluye **transferencia TCP manual, sincronización automática Watchdog, reanudación por offset y cola SQLite persistente**; se activan desde pestañas distintas de la GUI.
 
 ## Componentes y límites
 
@@ -20,7 +20,7 @@ flowchart LR
 
 **No confundir:**
 - Los eventos del panel se registran **en RAM**.
-- Las tablas SQLite existen, pero el envío de archivos **no registra automáticamente** una transacción persistente.
+- El motor automático usa **sync.db** para registrar operaciones y versiones, independiente de las tablas académicas iniciales; la actividad manual de la GUI sigue siendo volátil.
 - La API HTTP está confinada a localhost. La conexión de red real viaja por el canal **TCP 9001**, separado.
 - La ruta heredada `/api/p2p` tiene restricciones adicionales de destinatario; para la GUI actual se utiliza `/api/lan`.
 
@@ -73,7 +73,21 @@ En los dos computadores reales: registrar ACK, archivo recibido y **hash SHA-256
 
 - El transporte manual, HMAC, integridad y GUI están implementados.
 - TLS está disponible **opcionalmente** y requiere certificados para activarse.
-- No hay observador Watchdog activo, replicación automática, `MODIFY`/`DELETE` remotos, cola persistente ni reanudación parcial.
+- El motor automático sí dispone de Watchdog, réplica, cola persistente y reanudación. `DELETE` remoto es opt-in y guarda en papelera; las modificaciones utilizan `CREATE_RESUME` y respaldos, no un comando `MODIFY` separado.
 - Los diseños PDF y las capturas de fases anteriores se conservan como historial, **no reemplazan el estado actual**.
 
 Diagramas: [ARQUITECTURA.md](ARQUITECTURA.md), [fuentes Mermaid](diagramas/fuentes_mermaid/). Protocolo: [PROTOCOLO_TCP.md](PROTOCOLO_TCP.md). Seguridad: [SEGURIDAD_Y_ERRORES.md](SEGURIDAD_Y_ERRORES.md).
+
+## Integración del motor automático
+
+```mermaid
+flowchart LR
+  GUI["GUI Sincronización"] -->|"/api/sync"| API["FastAPI localhost"]
+  API --> W["Watchdog + escaneo"]
+  W --> DB[("SQLite sync.db: cola y versiones")]
+  DB --> TX["TCP CREATE_RESUME / DELETE opt-in"]
+  TX --> RX["Receptor del otro equipo"]
+  RX --> FS[("Carpeta compartida + respaldos")]
+```
+
+La pestaña **Sincronización** permite autorizar pares, iniciar/detener vigilancia, comprobar cola y restaurar versiones. En **Transferencias**, la opción *Recibir directamente en carpeta sincronizada* convierte al receptor en destino del espejo. La búsqueda de equipos UDP 9002 solo funciona con token HMAC compartido y requiere selección manual. El servicio puede iniciarse automáticamente con variables protegidas siguiendo [DESPLIEGUE_FINAL.md](DESPLIEGUE_FINAL.md).
