@@ -7,17 +7,27 @@ echo ==============================================================
 echo    LOCAlSYNC - PANEL WEB LOCAL (Windows)
 echo ==============================================================
 echo.
-where py >nul 2>&1
+py -3.12 --version >nul 2>&1
 if errorlevel 1 (
-  echo ERROR: Python no esta instalado o no se encontro py.exe.
-  echo Instala Python 3.10+ y marca Add Python to PATH.
+  echo ERROR: Se requiere Python 3.12 con el lanzador py.
+  echo Instala Python 3.12 desde https://www.python.org/downloads/
   pause
   exit /b 1
 )
+if exist ".venv\Scripts\python.exe" (
+  ".venv\Scripts\python.exe" -c "import sys; sys.exit(sys.version_info[:2] != (3, 12))" >nul 2>&1
+  if errorlevel 1 (
+    echo El entorno virtual existente no usa Python 3.12 o esta danado.
+    echo Recreando entorno virtual...
+    rmdir /s /q ".venv"
+    if exist ".venv" (echo ERROR eliminando entorno virtual & pause & exit /b 1)
+  )
+)
 if not exist ".venv\Scripts\python.exe" (
-  echo [1/3] Creando entorno virtual Python...
-  py -3 -m venv .venv
+  echo [1/3] Creando entorno virtual Python 3.12...
+  py -3.12 -m venv .venv
   if errorlevel 1 (echo ERROR creando entorno virtual & pause & exit /b 1)
+  if exist ".venv\.localsync-deps-ok" del /q ".venv\.localsync-deps-ok"
 )
 if not exist ".venv\.localsync-deps-ok" (
   echo [2/3] Instalando dependencias...
