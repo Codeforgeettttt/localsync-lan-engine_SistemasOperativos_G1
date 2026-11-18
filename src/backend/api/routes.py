@@ -67,8 +67,8 @@ def obtener_estado_nodo():
         "es_simulacion": False,
         "advertencia_estado": (
             "Transferencia de archivos TCP, SHA-256, HMAC, TLS opcional y laboratorio Docker implementados. "
-            "Sincronización automática por escaneo, cola SQLite, reintentos y archivado remoto opt-in disponibles; "
-            "no hay reanudación parcial ni consenso distribuido."
+            "Watchdog, cola SQLite, reanudación por offset, versiones y réplica bidireccional opt-in disponibles; "
+            "no hay consenso distribuido de ediciones concurrentes ni limpieza automática de parciales."
         ),
         "entorno_real_detectado": {
             "hostname": platform.node() or "nodo-local",
@@ -88,14 +88,19 @@ def obtener_estado_nodo():
             "autosync_cola_sqlite": "IMPLEMENTADO (opt-in)",
             "versiones_locales": "IMPLEMENTADO",
             "borrado_remoto": "IMPLEMENTADO (opt-in + papelera)",
+            "watchdog": "IMPLEMENTADO con escaneo de respaldo",
+            "reanudacion_por_offset": "IMPLEMENTADO con SHA-256",
+            "descubrimiento_lan": "IMPLEMENTADO UDP/HMAC",
+            "sincronizacion_bidireccional": "IMPLEMENTADO (opt-in con respaldo de versiones)",
+            "autostart_linux": "IMPLEMENTADO (plantilla systemd + variables protegidas)",
         },
         "componentes_pendientes": {
-            "watchdog_eventos_nativos": "PENDIENTE (observación por escaneo)",
-            "monitoreo_watchdog_inotify": "PENDIENTE (actualmente vigilancia por escaneo)",
-            "reanudacion_fragmentos": "PENDIENTE",
-            "sincronizacion_distribuida_multimaestro": "PENDIENTE",
+            "consenso_ediciones_concurrentes": "PENDIENTE (último cambio aplicado + respaldo)",
+            "limpieza_automatica_parciales": "PENDIENTE",
+            "auditoria_seguridad_externa": "PENDIENTE",
         },
         "estado_motor_local": motor_local.obtener_estado_motor(),
+        "estado_motor_autosync": get_engine().status(),
         "estado_base_datos_sqlite": resumen_bd,
     }
 
