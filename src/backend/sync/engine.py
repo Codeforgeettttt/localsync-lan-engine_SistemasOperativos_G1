@@ -278,7 +278,7 @@ class AutoSync:
             if file.is_symlink() or not file.is_file():
                 continue
             rel = file.relative_to(self.root).as_posix()
-            if rel.startswith(".localsync-") or "/.localsync-" in rel:
+            if rel.startswith((".localsync-", ".localsync_")) or "/.localsync-" in rel or "/.localsync_" in rel:
                 continue
             try:
                 stat=file.stat()
