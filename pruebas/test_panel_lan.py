@@ -122,6 +122,64 @@ class TestPanelLAN(unittest.TestCase):
         finally:
             self.client.post("/api/lan/receptor/detener", json={})
 
+    def test_gestion_archivos_verificar_renombrar_eliminar_y_conflictos(self):
+        dato = b"LocalSync archivo administrado"
+        result = self.client.post("/api/lan/archivos",
+            files={"archivo": ("informe.txt", dato, "text/plain")},
+            data={"ruta": "grupo/informe.txt"})
+        self.assertEqual(result.status_code, 200, result.text)
+
+        sha = self.client.get("/api/lan/archivo/verificar",
+                              params={"bandeja":"envios","ruta":"grupo/informe.txt"})
+        self.assertEqual(sha.status_code, 200, sha.text)
+        import hashlib
+        self.assertEqual(sha.json()["sha256"], hashlib.sha256(dato).hexdigest())
+
+        invalidos = ("../fuera.txt", "x/../../fuera.txt", "/etc/passwd")
+        for mal in invalidos:
+            with self.subTest(ruta=mal):
+                self.assertEqual(self.client.request("DELETE", "/api/lan/archivo",
+                    json={"bandeja":"envios","ruta":mal}).status_code, 400)
+
+        renombrar = self.client.patch("/api/lan/archivo",json={
+            "bandeja":"envios","ruta":"grupo/informe.txt","nuevo_nombre":"informe-final.txt"})
+        self.assertEqual(renombrar.status_code, 200, renombrar.text)
+        self.assertEqual(renombrar.json()["ruta"], "grupo/informe-final.txt")
+        self.assertTrue((self.envios/"grupo"/"informe-final.txt").is_file())
+
+        # El renombrado no acepta traversal ni sobrescribe un nombre existente.
+        malformed = self.client.patch("/api/lan/archivo",json={
+            "bandeja":"envios","ruta":"grupo/informe-final.txt","nuevo_nombre":"../malo.txt"})
+        self.assertEqual(malformed.status_code, 400)
+        otro = self.envios / "grupo" / "ocupado.txt"
+        otro.write_bytes(b"no modificar")
+        conflicto = self.client.patch("/api/lan/archivo",json={
+            "bandeja":"envios","ruta":"grupo/informe-final.txt","nuevo_nombre":"ocupado.txt"})
+        self.assertEqual(conflicto.status_code, 409)
+        self.assertEqual(otro.read_bytes(), b"no modificar")
+
+        eliminado = self.client.request("DELETE", "/api/lan/archivo",json={
+            "bandeja":"envios","ruta":"grupo/informe-final.txt"})
+        self.assertEqual(eliminado.status_code, 200, eliminado.text)
+        self.assertFalse((self.envios/"grupo"/"informe-final.txt").exists())
+        self.assertEqual(self.client.get("/api/lan/archivo/verificar",
+            params={"bandeja":"envios","ruta":"grupo/informe-final.txt"}).status_code, 404)
+        tipos = [x["tipo"] for x in self.client.get("/api/lan/estado").json()["historial"]]
+        self.assertIn("ARCHIVO_ELIMINADO", tipos)
+        self.assertIn("ARCHIVO_RENOMBRADO", tipos)
+
+    def test_carga_demasiado_grande_limpia_temporales_y_estado_red(self):
+        with patch.object(lan_routes, "MAX_FILE_SIZE", 4):
+            resultado = self.client.post("/api/lan/archivos",
+                files={"archivo": ("grande.bin", b"12345", "application/octet-stream")},
+                data={"ruta":"grande.bin"})
+        self.assertEqual(resultado.status_code, 413)
+        self.assertFalse((self.envios/"grande.bin").exists())
+        self.assertEqual(list(self.envios.rglob(".localsync-*")), [])
+        red = self.client.get("/api/lan/red")
+        self.assertEqual(red.status_code, 200)
+        self.assertIn("ips_locales", red.json())
+
     def test_receptor_lan_exige_token(self):
         r = self.client.post("/api/lan/receptor/iniciar",
                              json={"modo_lan":True, "puerto":9001, "token":"corto"})
