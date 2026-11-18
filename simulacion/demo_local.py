@@ -9,8 +9,13 @@ import hashlib
 from pathlib import Path
 import secrets
 import socket
+import sys
 import tempfile
 import threading
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from src.backend.core.engine import calcular_sha256
 from src.backend.network.cliente_tcp import comprobar_conexion, enviar_archivo, enviar_carpeta
