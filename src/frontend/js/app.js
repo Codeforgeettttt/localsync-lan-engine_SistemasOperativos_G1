@@ -39,6 +39,7 @@
         try {
             const resp = await fetch("/api/inicializar-bd", { method: "POST" });
             const data = await resp.json();
+            if (!resp.ok) throw new Error("HTTP " + resp.status);
             controlFeedback.textContent = data.mensaje || "Esquema SQLite procesado.";
             await cargarEstadoAPI();
         } catch (err) {
@@ -54,6 +55,7 @@
                 body: JSON.stringify({ pausar: pausar })
             });
             const data = await resp.json();
+            if (!resp.ok) throw new Error("HTTP " + resp.status);
             controlFeedback.textContent = `Bandera sincronizacion_pausada = ${data.sincronizacion_pausada} (${data.alcance_accion})`;
             await cargarEstadoAPI();
         } catch (err) {
@@ -73,12 +75,21 @@
     const p2pFeedback = document.getElementById("p2pFeedback");
     const p2pFilename = document.getElementById("p2pFilename");
 
+    function destinoP2p() {
+        const host = document.getElementById("p2pHost").value.trim();
+        const puerto = Number(document.getElementById("p2pPort").value);
+        if (!host || !Number.isInteger(puerto) || puerto < 1024 || puerto > 65535) {
+            throw new Error("Introduce una IPv4 y un puerto válido.");
+        }
+        return { host, puerto };
+    }
+
     async function comprobarP2p() {
         p2pStatus.textContent = "Comprobando...";
         try {
-            const resp = await fetch("/api/p2p/conexion");
-            if (!resp.ok) throw new Error("HTTP " + resp.status);
+            const resp = await fetch("/api/p2p/conexion?" + new URLSearchParams(destinoP2p()));
             const data = await resp.json();
+            if (!resp.ok) throw new Error(typeof data.detail === "string" ? data.detail : "HTTP " + resp.status);
             p2pStatus.textContent = data.conectado
                 ? "Conectado: " + data.detalle
                 : "Sin conexión: " + data.detalle;
@@ -99,7 +110,7 @@
             const resp = await fetch("/api/p2p/enviar", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ nombre })
+                body: JSON.stringify({ nombre, ...destinoP2p() })
             });
             const data = await resp.json();
             if (!resp.ok) throw new Error(typeof data.detail === "string" ? data.detail : "HTTP " + resp.status);
@@ -114,5 +125,10 @@
     if (btnP2pCheck) btnP2pCheck.addEventListener("click", comprobarP2p);
     if (btnP2pSend) btnP2pSend.addEventListener("click", enviarP2p);
 
+    for (const id of ["p2pHost", "p2pPort"]) {
+        document.getElementById(id)?.addEventListener("input", () => {
+            p2pStatus.textContent = "Destino cambiado; comprueba de nuevo.";
+        });
+    }
     cargarEstadoAPI();
 })();

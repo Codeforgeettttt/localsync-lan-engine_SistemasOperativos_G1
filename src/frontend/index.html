@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LocalSync | Panel Web Local (Prototipo Fase 1 - Grupo G1)</title>
+    <title>LocalSync | Panel Web Local (Integración - Grupo G1)</title>
     <link rel="stylesheet" href="/static/css/styles.css">
     <link rel="stylesheet" href="css/styles.css">
 </head>
@@ -16,23 +16,19 @@
         </div>
         <div class="status-box">
             <span class="dot warning"></span>
-            Estado del Proyecto: <strong>Fase 1 (Estructuración y Base Verificable)</strong>
+            Estado del Proyecto: <strong>Integración TCP y panel web</strong>
         </div>
     </header>
 
     <div class="demo-banner">
-        <strong>AVISO DE TRANSPARENCIA TÉCNICA (FASE 1):</strong>
-        Esta interfaz muestra la estructura del panel de control local conectada a la API <code>FastAPI</code>.
-        El esquema <code>SQLite 3</code>, el cálculo de integridad <code>SHA-256</code> y la validación de rutas están
-        <strong>implementados y probados</strong>. El transporte por <code>Sockets TCP</code>, el cifrado <code>TLS</code> y
-        el monitoreo en tiempo real con <code>Watchdog</code> se encuentran <strong>planificados para las Fases 3 a 7</strong>.
+        <strong>ESTADO TÉCNICO:</strong> FastAPI, SQLite, SHA-256 y transferencia manual por TCP están implementados. TLS, autenticación, Watchdog y sincronización automática continúan pendientes. Las pruebas locales no equivalen a validación entre equipos.
     </div>
 
     <main class="container">
         <section class="card">
             <h2>1. Estado Real de Componentes (Consultado desde <code>/api/estado</code>)</h2>
             <div id="apiStatusContainer" class="status-grid">
-                <p>Consultando endpoint <code>/api/estado</code> (si abres este archivo directamente sin iniciar Uvicorn, se mostrarán los indicadores estáticos de Fase 1)...</p>
+                <p>Consultando endpoint <code>/api/estado</code>...</p>
             </div>
             <div class="actions">
                 <button id="btnRefresh" class="primary">Consultar /api/estado</button>
@@ -44,11 +40,11 @@
             <h2>2. Control de Sincronización Local (RF-12 - Estructura Inicial)</h2>
             <p>
                 <strong>Alcance actual de los controles:</strong> Actualizan el estado de pausa en la instancia de la API local.
-                La conexión con el demonio <code>Watchdog</code> y los sockets TCP se integrará en las Fases 3 y 4.
+                No detienen las transferencias manuales TCP. Watchdog sigue pendiente.
             </p>
             <div class="actions">
-                <button id="btnPause">Marcar Estado: Pausado (En Memoria API)</button>
-                <button id="btnResume" class="primary">Marcar Estado: Activo (En Memoria API)</button>
+                <button id="btnPause">Marcar pausa (solo API)</button>
+                <button id="btnResume" class="primary">Quitar pausa (solo API)</button>
             </div>
             <p id="controlFeedback" class="feedback-msg">Estado actual en API: Sin cambios enviados.</p>
         </section>
@@ -57,14 +53,19 @@
             <h2>3. Vista Previa de Datos Simulados de Interfaz (Modo Demostración)</h2>
             <p class="sim-tag">ETIQUETA EXPLÍCITA: DATOS SIMULADOS DE DEMOSTRACIÓN (NO REPRESENTAN TRANSFERENCIAS REALES)</p>
             <ul id="eventList">
-                <li><strong>[DATO SIMULADO - DEMO UI]</strong> Nodo Par de Ejemplo: <code>192.168.10.22:9001</code> (Transporte TCP pendiente Fase 3).</li>
+                <li><strong>[DATO SIMULADO - DEMO UI]</strong> Nodo Par de Ejemplo: <code>192.168.10.22:9001</code> (Ejemplo de dirección, no conexión comprobada).</li>
                 <li><strong>[DATO SIMULADO - DEMO UI]</strong> Directorio Ejemplo: <code>/home/ubuntu/LocalSync_Compartida</code> (Observador Watchdog pendiente Fase 4).</li>
                 <li><strong>[MÓDULO REAL VERIFICADO]</strong> Validador SHA-256 y protección anti-Path Traversal operativos en <code>src/backend/core/engine.py</code>.</li>
             </ul>
         </section>
         <section class="card">
-            <h2>4. Transferencia TCP real (prueba local)</h2>
-            <p>El servidor TCP debe ejecutarse por separado en 127.0.0.1:9001. Solo se pueden enviar archivos colocados en <code>archivos_para_enviar (carpeta a crear en la carpeta descomprimida)</code>. Esta función no usa TLS ni autenticación; úsala únicamente en localhost.</p>
+            <h2>4. Transferencia TCP real</h2>
+            <p>El servidor TCP se inicia por separado. Usa localhost por defecto; para un par LAN privado se requiere autorización en LOCALSYNC_PAR_LAN. Sin TLS ni autenticación: utiliza solo un entorno de pruebas aislado.</p>
+            <label for="p2pHost">IPv4 del nodo</label>
+            <input id="p2pHost" value="127.0.0.1" required>
+            <label for="p2pPort">Puerto TCP</label>
+            <input id="p2pPort" type="number" min="1024" max="65535" value="9001" required>
+            <p>Archivos de origen: <code>archivos_para_enviar</code>.</p>
             <div class="actions">
                 <button id="btnP2pCheck" class="secondary">Comprobar servidor TCP</button>
             </div>

@@ -18,12 +18,12 @@ from src.backend.storage.db_manager import GestorBaseDatosLocal
 from src.backend.api.p2p_routes import router as p2p_router
 
 app = FastAPI(
-    title="LocalSync Local Control API (Prototipo Fase 1)",
+    title="LocalSync Local Control API (Prototipo de integración)",
     description=(
         "API local de estructuración inicial para LocalSync (Grupo G1). "
         "Diferencia explícitamente entre componentes verificados y datos de demostración."
     ),
-    version="0.1.0-fase1",
+    version="0.2.0",
 )
 
 app.include_router(p2p_router)
@@ -48,12 +48,11 @@ def obtener_estado_nodo():
             "Valery Michell Herrera Roca",
             "Daniel Felipe Rojas Gonzales",
         ],
-        "fase_proyecto": "Fase 1 - Estructuración, Documentación y Base Verificable",
+        "fase_proyecto": "Integración API, panel web y transporte TCP",
         "es_simulacion": MODO_DEMOSTRACION,
         "advertencia_estado": (
-            "Prototipo en Fase 1: La API FastAPI, el esquema SQLite, el cálculo SHA-256 y el validador "
-            "anti-Path Traversal son reales y verificables. La transferencia P2P por sockets TCP, "
-            "el canal TLS y el observador Watchdog en segundo plano están planificados para las Fases 3 a 7."
+            "API, SQLite, SHA-256 y transferencia TCP manual implementados. "
+            "TLS, Watchdog y sincronización automática pendientes."
         ),
         "entorno_real_detectado": {
             "hostname": platform.node() or "nodo-local-no-identificado",
@@ -65,10 +64,11 @@ def obtener_estado_nodo():
             "calculo_sha256": "IMPLEMENTADO Y PROBADO (src/backend/core/engine.py)",
             "validacion_rutas_seguras": "IMPLEMENTADO Y PROBADO (src/backend/core/engine.py)",
             "esquema_sqlite3": "IMPLEMENTADO Y PROBADO (src/bd/schema.sql)",
+            "transporte_sockets_tcp_lan": "IMPLEMENTADO (transferencia manual; conectividad consultada por /api/p2p/conexion)",
             "serializador_mensajes_p2p": "IMPLEMENTADO Y PROBADO (src/backend/network/p2p_socket.py)",
         },
         "componentes_pendientes": {
-            "transporte_sockets_tcp_lan": "PENDIENTE (Planificado para Fase 3)",
+            
             "monitoreo_watchdog_inotify": "PENDIENTE (Planificado para Fase 4)",
             "reconciliacion_y_tombstones": "PENDIENTE (Planificado para Fase 5)",
             "seguridad_tls_y_autenticacion": "PENDIENTE (Planificado para Fase 7)",
@@ -104,8 +104,7 @@ def cambiar_estado_pausa(solicitud: SolicitudPausa):
     return {
         "sincronizacion_pausada": motor_local.sincronizacion_pausada,
         "alcance_accion": (
-            "Estado actualizado en memoria de la API. La vinculación con el demonio Watchdog "
-            "y el socket TCP real se implementará en las Fases 3 y 4."
+            "Bandera en memoria; no detiene transferencias TCP manuales ni un observador."
         ),
     }
 
