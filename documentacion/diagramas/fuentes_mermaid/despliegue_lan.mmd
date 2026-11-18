@@ -1,0 +1,32 @@
+%% Despliegue OPERATIVO de LocalSync. Dos PCs, cada panel HTTP solo local.
+flowchart TB
+    subgraph PC_A["PC A - Windows o Ubuntu"]
+      BROW_A["Navegador A"]
+      WEB_A["FastAPI 127.0.0.1:8080"]
+      REC_A["Receptor TCP 0.0.0.0:9001"]
+      TX_A["Cliente TCP"]
+      FILES_A[("Archivos locales A")]
+      BROW_A --> WEB_A
+      WEB_A --> TX_A
+      WEB_A --> REC_A
+      WEB_A --> FILES_A
+    end
+    subgraph LAN["LAN confiable"]
+      SWITCH["Switch / router local"]
+    end
+    subgraph PC_B["PC B - Windows o Ubuntu"]
+      BROW_B["Navegador B"]
+      WEB_B["FastAPI 127.0.0.1:8080"]
+      REC_B["Receptor TCP 0.0.0.0:9001"]
+      TX_B["Cliente TCP"]
+      FILES_B[("Archivos locales B")]
+      BROW_B --> WEB_B
+      WEB_B --> TX_B
+      WEB_B --> REC_B
+      WEB_B --> FILES_B
+    end
+    TX_A -->|"TCP y ACK, A a B"| SWITCH --> REC_B
+    TX_B -->|"TCP y ACK, B a A"| SWITCH --> REC_A
+    %% Cada usuario solo accede a su GUI local.
+    %% Firewall permitir TCP 9001 solo desde IP del otro equipo.
+    %% HMAC en ambos sentidos y TLS opcional si se configura.
