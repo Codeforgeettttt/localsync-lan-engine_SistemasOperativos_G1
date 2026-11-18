@@ -37,7 +37,7 @@
     finally { button.disabled = false; }
   }
   function showView(view) {
-    if (!["resumen","transferir","laboratorio","actividad"].includes(view)) return;
+    if (!["resumen","transferir","sincronizar","laboratorio","actividad"].includes(view)) return;
     state.view = view;
     document.querySelectorAll("[data-view]").forEach((part) => part.hidden = part.dataset.view !== view);
     document.querySelectorAll("[data-nav]").forEach((btn) => {
@@ -46,10 +46,11 @@
       else btn.removeAttribute("aria-current");
     });
     $("breadcrumbSection").textContent = {
-      resumen:"Resumen", transferir:"Transferencias", laboratorio:"Laboratorio virtual", actividad:"Actividad",
+      resumen:"Resumen", transferir:"Transferencias", sincronizar:"Sincronización", laboratorio:"Laboratorio virtual", actividad:"Actividad",
     }[view];
     document.querySelector(".sidebar").classList.remove("visible");
     if (view === "laboratorio") loadDemo();
+    if (view === "sincronizar") loadSync();
     if (view === "transferir") refreshFiles();
     if (view === "actividad") loadLAN();
     window.scrollTo(0, 0);
@@ -129,7 +130,8 @@
     const port = Number($("receiverPort").value), lan = $("receiverMode").value === "lan";
     if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error("Puerto de receptor inválido.");
     const result = await post("/api/lan/receptor/iniciar",
-      {modo_lan:lan,puerto:port,token:$("sharedToken").value});
+      {modo_lan:lan,puerto:port,token:$("sharedToken").value,
+       permitir_borrado:$("syncEnableDeletes").checked});
     $("remotePort").value = String(result.puerto);
     if (!lan) $("remoteHost").value = "127.0.0.1";
     notify(lan ? "Receptor LAN iniciado; usa el mismo token en el otro equipo."
@@ -288,6 +290,83 @@
         notify("La simulación falló. Consulta el registro.",true);
     } catch(e) {notify(e.message,true);}
   }
+
+  async function loadSync() {
+    try {
+      const data = await api("/api/sync/estado");
+      const active = Boolean(data.activo);
+      $("syncStatus").textContent = active ? "En marcha" : "Detenida";
+      $("syncPending").textContent = String(data.pendientes);
+      $("syncFailures").textContent = String(data.con_errores);
+      $("syncPeers").textContent = String(data.pares.length);
+      $("syncPath").textContent = data.carpeta;
+      badge($("syncBadge"), active ? "ACTIVA" : "DETENIDA",active ? "" : "muted");
+      $("syncStart").disabled = active;
+      $("syncStop").disabled = !active;
+      const peers = $("syncPeerList"); peers.replaceChildren();
+      if (!data.pares.length) empty(peers, "Añade un par con token antes de sincronizar.");
+      for (const peer of data.pares) {
+        const row = document.createElement("div"); row.className = "file-row";
+        const name = document.createElement("div"); name.className = "file-meta";
+        const title = document.createElement("div"); title.className = "file-name";
+        title.textContent = peer.host + ":" + peer.port;
+        const sub = document.createElement("small");
+        sub.textContent = "Par autorizado manualmente · ID " + peer.id;
+        name.append(title,sub);
+        const del = document.createElement("button");
+        del.className = "btn btn-outline btn-small"; del.textContent="Quitar";
+        del.addEventListener("click", () => action(del, async () => {
+          if (!confirm("¿Desautorizar equipo y eliminar sus trabajos pendientes?")) return;
+          await api("/api/sync/pares/"+peer.id, {method:"DELETE"});
+          await loadSync();
+        }));
+        row.append(name,del); peers.append(row);
+      }
+      const queue=$("syncQueueList"); queue.replaceChildren();
+      if (!data.cola.length) empty(queue,"Sin trabajos pendientes; cola al día.");
+      for (const job of data.cola) {
+        const row=document.createElement("div");row.className="file-row";
+        const meta=document.createElement("div");meta.className="file-meta";
+        const title=document.createElement("div");title.className="file-name";
+        title.textContent=job.operation+" · "+job.path;
+        const subtitle=document.createElement("small");
+        subtitle.textContent="Reintentos: "+job.tries+(job.error?" · "+job.error:"");
+        meta.append(title,subtitle);row.append(meta);queue.append(row);
+      }
+      const events=$("syncEvents"); events.replaceChildren();
+      for (const event of data.historial.slice(0,16)) {
+        const row=document.createElement("div");row.className="event-item";
+        const meta=document.createElement("div");meta.className="event-copy";
+        const title=document.createElement("strong");title.textContent=event.tipo;
+        const sub=document.createElement("small");sub.textContent=event.detalle;
+        meta.append(title,sub);row.append(meta);events.append(row);
+      }
+    } catch(err) {notify(err.message,true);}
+  }
+
+  async function loadVersions() {
+    const data=await api("/api/sync/versiones");
+    const list=$("syncVersions");list.replaceChildren();
+    if (!data.versiones.length) return empty(list,"Todavía no hay respaldos.");
+    for(const item of data.versiones){
+      const row=document.createElement("div");row.className="file-row";
+      const meta=document.createElement("div");meta.className="file-meta";
+      const name=document.createElement("div");name.className="file-name";
+      name.textContent=item.path+" · "+item.created_at;
+      const detail=document.createElement("small");
+      detail.textContent="SHA-256: "+item.sha256;
+      meta.append(name,detail);
+      const restore=document.createElement("button");restore.className="btn btn-outline btn-small";
+      restore.textContent="Restaurar";
+      restore.addEventListener("click",()=>action(restore,async()=>{
+        if(!confirm("¿Restaurar esta versión del archivo "+item.path+"?"))return;
+        await post("/api/sync/restaurar",{version_id:item.id});
+        notify("Versión restaurada.");await loadSync();
+      }));
+      row.append(meta,restore);list.append(row);
+    }
+  }
+
   function events() {
     document.querySelectorAll("[data-nav]").forEach(b =>
       b.addEventListener("click",()=>showView(b.dataset.nav)));
@@ -349,6 +428,33 @@
         throw e;
       }
     }));
+
+    $("syncAddPeer").addEventListener("click",()=>action($("syncAddPeer"),async()=>{
+      const host=$("syncHost").value.trim(),port=Number($("syncPort").value);
+      const token=$("syncToken").value;
+      if(!token || token.length<16)throw new Error("Introduce el token compartido de 16+ caracteres.");
+      await post("/api/sync/pares",{host,port,token});
+      $("syncToken").value="";
+      notify("Par autorizado. Activa la sincronización cuando quieras.");
+      await loadSync();
+    }));
+    $("syncStart").addEventListener("click",()=>action($("syncStart"),async()=>{
+      const result=await post("/api/sync/iniciar",{
+        propagate_deletes:$("syncEnableDeletes").checked
+      });
+      notify(result.mensaje);
+      await loadSync();
+    }));
+    $("syncStop").addEventListener("click",()=>action($("syncStop"),async()=>{
+      await post("/api/sync/detener");
+      notify("Sincronización detenida.");
+      await loadSync();
+    }));
+    $("syncScan").addEventListener("click",()=>action($("syncScan"),async()=>{
+      await post("/api/sync/escanear");notify("Carpeta revisada.");await loadSync();
+    }));
+    $("syncRefresh").addEventListener("click",loadSync);
+    $("syncLoadVersions").addEventListener("click",()=>action($("syncLoadVersions"),loadVersions));
     $("runSimulation").addEventListener("click",()=>action($("runSimulation"),async () => {
       await post("/api/lan/simulacion/iniciar");
       notify("Simulación Docker iniciada.");
@@ -367,8 +473,9 @@
   }
   async function start() {
     events();clock();
-    await Promise.all([loadLAN(),refreshFiles(),loadDemo(),loadIPs()]);
+    await Promise.all([loadLAN(),refreshFiles(),loadDemo(),loadIPs(),loadSync()]);
     setInterval(clock,30000);
+    setInterval(()=>{if(!document.hidden && state.view==="sincronizar")loadSync();},2500);
     setInterval(()=>{if(!document.hidden)loadLAN();},5000);
     setInterval(()=>{
       if(!document.hidden&&(state.view==="laboratorio"||state.demo?.estado==="ejecutando"))loadDemo();
