@@ -24,7 +24,7 @@ def _ruta_segura(base: Path, relativa: str) -> Path:
     """Restringe todas las rutas recibidas a la carpeta autorizada."""
     if not isinstance(relativa, str) or not relativa or "\x00" in relativa or "\\" in relativa:
         raise ValueError("Ruta de archivo no autorizada.")
-    if any(part.startswith(".localsync-") or part == ".localsync_deleted"
+    if any(part.startswith((".localsync-", ".localsync_"))
            for part in relativa.split("/")):
         raise ValueError("Ruta reservada para datos internos de LocalSync.")
     ruta_posix = PurePosixPath(relativa)
