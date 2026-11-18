@@ -1,12 +1,12 @@
 # Instalación del receptor TCP LocalSync en Ubuntu (systemd)
 
-**Estado:** procedimiento de instalación; el equipo del estudiante debe ejecutarlo y comprobarlo. El archivo de unidad no prueba por sí solo que el servicio esté corriendo.
+**Estado:** procedimiento de instalación; el equipo del estudiante debe ejecutarlo y comprobarlo. La existencia de una unidad `systemd` no prueba que esté instalada ni habilitada en los equipos de la auditoría. El archivo de unidad no prueba por sí solo que el servicio esté corriendo.
 
 La unidad `localsync-tcp.service` ejecuta el **servidor de recepción TCP** por separado del servidor web FastAPI. Permite reiniciar el receptor automáticamente si el proceso termina de forma inesperada.
 
 ## Antes de comenzar
 
-Necesitas Python 3.10+, permisos sudo, la red LAN configurada y la rama con el código del motor TCP. Si se utiliza un certificado TLS, la unidad debe adaptarse añadiendo `--tls-cert` y `--tls-key` a `ExecStart` y asegurando que el usuario `localsync` pueda leer ambos archivos.
+Necesitas Python 3.10+, permisos sudo, la red LAN configurada y la versión actual de la rama `main` con el motor TCP. Si se utiliza un certificado TLS, la unidad debe adaptarse añadiendo `--tls-cert` y `--tls-key` a `ExecStart` y asegurando que el usuario `localsync` pueda leer ambos archivos.
 
 ## Instalación (en el equipo receptor)
 
@@ -87,6 +87,8 @@ sudo systemctl disable --now localsync-tcp
 ```
 
 ## Limitaciones de esta entrega
+
+Esta plantilla es distinta del panel HTTP. El usuario puede **usar la GUI y el receptor desde el proceso FastAPI** sin instalar esta unidad; `systemd` es una opción de despliegue Linux y requiere configuración de permisos, rutas y secretos. No es una prueba equivalente al laboratorio Docker.
 
 - El servicio TCP no inicia automáticamente la API FastAPI ni el observador Watchdog.
 - Las transferencias se disparan por el cliente CLI; no existe monitoreo automático de carpetas.
