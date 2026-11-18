@@ -117,3 +117,77 @@ def recibir_archivo(conexion, mensaje: dict, carpeta_autorizada: str | Path,
     finally:
         if temporal is not None:
             temporal.unlink(missing_ok=True)
+
+
+
+def recibir_reanudable(conexion, mensaje: dict, carpeta_autorizada: str | Path,
+                       *, on_conflict: str = "keep-both",
+                       on_before_overwrite=None, on_offset=None) -> Path:
+    """Reanuda un archivo incompleto tras caída TCP usando un .part persistente.
+
+    Requiere el mismo hash y ruta; nunca confía en bytes recibidos antes de
+    verificar SHA-256 final. Los temporales incompletos quedan en la carpeta
+    interna para poder continuar después de reiniciar el servidor.
+    """
+    if on_conflict not in POLITICAS_CONFLICTO:
+        raise ValueError("Política de conflicto desconocida")
+    base = Path(carpeta_autorizada).resolve()
+    base.mkdir(parents=True, exist_ok=True)
+    size = mensaje.get("tamano_bytes")
+    expected = mensaje.get("hash_sha256")
+    if not isinstance(size, int) or isinstance(size,bool) or not 0 <= size <= MAX_FILE_SIZE:
+        raise ValueError("Tamaño inválido")
+    if not isinstance(expected,str) or not re.fullmatch(r"[0-9a-fA-F]{64}",expected):
+        raise ValueError("Hash SHA-256 inválido")
+    expected=expected.lower()
+    dest=_ruta_segura(base,mensaje.get("ruta_relativa"))
+    dest.parent.mkdir(parents=True,exist_ok=True)
+    dest=_ruta_segura(base,mensaje["ruta_relativa"])
+    part_dir=base/".localsync_partials"
+    part_dir.mkdir(parents=True,exist_ok=True)
+    key=hashlib.sha256((mensaje["ruta_relativa"]+"|"+expected).encode("utf-8")).hexdigest()
+    partial=part_dir/(key+".part")
+
+    # El bloqueo impide que sesiones simultáneas modifiquen el mismo temporal.
+    # CREATE convencional continúa usando su propia recepción concurrente.
+    with _PUBLICATION_LOCK:
+        if partial.is_symlink() or (partial.exists() and not partial.is_file()):
+            raise ValueError("Temporal de reanudación inseguro")
+        offset=partial.stat().st_size if partial.exists() else 0
+        if offset>size:
+            partial.unlink()
+            offset=0
+        if on_offset is not None:
+            on_offset(offset)
+        remaining=size-offset
+        with partial.open("ab") as out:
+            while remaining:
+                chunk=conexion.recv(min(BUFFER_SIZE,remaining))
+                if not chunk:
+                    raise ConnectionError("Transferencia interrumpida: temporal guardado para reanudar")
+                out.write(chunk)
+                remaining-=len(chunk)
+        digest=calcular_sha256(partial)
+        if digest!=expected:
+            partial.unlink(missing_ok=True)
+            raise ValueError("SHA-256 no coincide; temporal de reanudación descartado")
+
+        dest=_ruta_segura(base,mensaje["ruta_relativa"])
+        if dest.exists() or dest.is_symlink():
+            if dest.is_symlink() or not dest.is_file():
+                raise ValueError("El destino es un archivo inseguro")
+            if dest.stat().st_size==size and calcular_sha256(dest)==digest:
+                partial.unlink(missing_ok=True)
+                return dest
+            if on_conflict=="reject":
+                partial.unlink(missing_ok=True)
+                raise FileExistsError("Archivo diferente con el mismo nombre")
+            if on_conflict=="keep-both":
+                dest=_destino_conflicto(dest,digest)
+                if dest.is_file() and calcular_sha256(dest)==digest:
+                    partial.unlink(missing_ok=True)
+                    return dest
+            elif on_before_overwrite is not None:
+                on_before_overwrite(dest)
+        os.replace(partial,dest)
+        return dest
