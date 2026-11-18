@@ -50,6 +50,19 @@ class TestInterfazEnNavegador(unittest.TestCase):
                 page.wait_for_function(
                     "document.getElementById('incomingFiles').textContent.includes('auditoria.txt')")
                 page.screenshot(path=str(directorio / "02_transferencia_real.png"), full_page=True)
+                # Probar gestión de archivos desde botones reales del navegador.
+                page.locator("#incomingFiles button").filter(has_text="SHA-256").first.click()
+                page.wait_for_function(
+                    "document.getElementById('incomingFiles').textContent.includes('SHA-256:')")
+                page.once("dialog", lambda dialog: dialog.accept("auditoria-verificada.txt"))
+                page.locator("#incomingFiles button").filter(has_text="Renombrar").first.click()
+                page.wait_for_function(
+                    "document.getElementById('incomingFiles').textContent.includes('auditoria-verificada.txt')")
+                page.screenshot(path=str(directorio / "04_archivo_verificado.png"), full_page=True)
+                page.once("dialog", lambda dialog: dialog.accept())
+                page.locator("#incomingFiles .btn-danger").first.click()
+                page.wait_for_function(
+                    "!document.getElementById('incomingFiles').textContent.includes('auditoria-verificada.txt')")
                 page.locator("#stopReceiver").click()
                 page.wait_for_function(
                     "document.getElementById('receiverBadge').textContent === 'APAGADO'")
