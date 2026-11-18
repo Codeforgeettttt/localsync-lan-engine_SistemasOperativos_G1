@@ -17,3 +17,13 @@ venv/
 archivos_para_enviar/
 archivos_recibidos/
 muestra_local/
+
+# Datos operativos de sincronización (no publicar contenido ni versiones)
+carpeta_sincronizada/
+datos_locales/
+.localsync_deleted/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.db-wal
+*.db-shm
