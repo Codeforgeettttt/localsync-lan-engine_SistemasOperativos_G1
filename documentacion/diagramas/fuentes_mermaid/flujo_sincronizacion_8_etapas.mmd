@@ -1,11 +1,18 @@
 %% DISEÑO FUTURO: sincronización automática, NO implementada.
-%% Se conserva para documentar la evolución propuesta del proyecto.
+%% El flujo muestra requisitos propuestos; la transferencia TCP actual es manual.
 flowchart TD
-  A["1. Evento del filesystem (Watchdog/inotify) - PENDIENTE"] -->
-  B["2. Debounce y filtrado - PENDIENTE"] -->
-  C["3. Cálculo SHA-256 - BASE IMPLEMENTADA"] -->
-  D["4. Registro de metadatos/cola SQLite - PENDIENTE INTEGRACIÓN"] -->
-  E["5. Preparar envío TCP - IMPLEMENTADO MANUALMENTE"] -->
-  F["6. Transmitir archivo / ACK - IMPLEMENTADO MANUALMENTE"] -->
-  G["7. Verificar y publicar - IMPLEMENTADO"] -->
-  H["8. Actualizar cola, tombstones y versiones distribuidas - PENDIENTE"]
+  A["1. Evento filesystem Watchdog / inotify - PENDIENTE"]
+  B["2. Debounce y filtrado - PENDIENTE"]
+  C["3. Calcular SHA-256 - IMPLEMENTADO"]
+  D["4. Metadatos y cola SQLite - NO INTEGRADO"]
+  E["5. Preparar envío - IMPLEMENTADO MANUALMENTE"]
+  F["6. Enviar por TCP y ACK - IMPLEMENTADO MANUALMENTE"]
+  G["7. Verificar y publicar - IMPLEMENTADO"]
+  H["8. Tombstones y reconciliación - PENDIENTE"]
+  A --> B
+  B --> C
+  C --> D
+  D --> E
+  E --> F
+  F --> G
+  G --> H
