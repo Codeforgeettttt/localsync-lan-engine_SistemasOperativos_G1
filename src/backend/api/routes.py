@@ -91,6 +91,7 @@ def obtener_estado_nodo():
         },
         "componentes_pendientes": {
             "watchdog_eventos_nativos": "PENDIENTE (observación por escaneo)",
+            "monitoreo_watchdog_inotify": "PENDIENTE (actualmente vigilancia por escaneo)",
             "reanudacion_fragmentos": "PENDIENTE",
             "sincronizacion_distribuida_multimaestro": "PENDIENTE",
         },
