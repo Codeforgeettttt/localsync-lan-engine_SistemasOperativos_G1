@@ -31,9 +31,10 @@ echo NOTA: abre Docker Desktop antes de iniciar la simulacion virtual.
 echo La GUI escucha SOLO en localhost. Para transferir a otro
 echo computador, usa el receptor TCP en modo LAN con token.
 echo.
-".venv\Scripts\python.exe" scripts\iniciar_panel.py
+".venv\Scripts\python.exe" -m scripts.iniciar_panel
 if errorlevel 1 (
   echo.
-  echo El panel no pudo iniciarse. Revisa si el puerto 8080 esta ocupado.
+  echo El panel no pudo iniciarse. Revisa el error de Python mostrado arriba.
+  echo Si indica Address already in use, entonces revisa el puerto 8080.
   pause
 )
