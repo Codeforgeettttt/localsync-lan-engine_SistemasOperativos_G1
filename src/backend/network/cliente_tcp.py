@@ -101,6 +101,8 @@ def enviar_archivo(ruta_archivo: str | Path, host: str, puerto: int = DEFAULT_PO
     if tamano > MAX_FILE_SIZE:
         raise ValueError("El archivo supera el límite de 100 MiB.")
     nombre_remoto = ruta_remota if ruta_remota is not None else ruta.name
+    from .transferencia import _ruta_segura
+    _ruta_segura(Path.cwd(), nombre_remoto)  # Rechazar traversal antes de abrir socket
     protocolo = NodoP2PTCP(host="127.0.0.1", port=puerto)
     sha = calcular_sha256(ruta)
     cabecera = protocolo.crear_mensaje_control("CREATE", nombre_remoto, sha, tamano)
