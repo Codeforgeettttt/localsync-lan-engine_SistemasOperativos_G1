@@ -1,28 +1,26 @@
-%% Arquitectura OPERATIVA LocalSync al 18-11-2026.
-%% No hay sincronización automática. Cada lado puede emitir y recibir manualmente.
+%% Arquitectura OPERATIVA LocalSync versión interna 0.4.0-sync
 flowchart LR
-  subgraph EquipoA["Equipo A"]
-    UA["Navegador localhost:8080"]
-    AP["FastAPI /api/lan"]
-    CA["Cliente TCP"]
-    RA["Receptor TCP :9001"]
-    FSA[("Bandeja de archivos A")]
-    DBA[("SQLite: esquema y utilidades; cola no conectada")]
-    UA --> AP
-    AP --> CA
-    AP --> RA
-    AP --> FSA
-    AP -. "Diagnóstico" .-> DBA
+  subgraph A["Equipo A"]
+    GUIA["GUI localhost:8080"]
+    SYNCA["Watchdog + escaneo"]
+    DBA[("SQLite: cola + versiones")]
+    TXA["Cliente TCP"]
+    RXA["Receptor TCP"]
+    FSA[("Carpeta A")]
+    GUIA --> SYNCA
+    FSA --> SYNCA --> DBA --> TXA
+    RXA --> FSA
   end
-  subgraph RedLAN["LAN privada - HMAC; TLS configurable"]
-    NET["Protocolo LOCALSYNC_P2P_V1\nJSON + bloques TCP"]
+  subgraph LAN["LAN confiable TCP 9001 HMAC TLS opcional"]
+    CANAL["CREATE_RESUME / DELETE opt-in / ACK"]
   end
-  subgraph EquipoB["Equipo B"]
-    RB["Receptor TCP :9001"]
-    CH["Validación de ruta y SHA-256"]
-    FSB[("Carpeta autorizada B")]
-    RB --> CH --> FSB
+  subgraph B["Equipo B"]
+    RXB["Receptor TCP"]
+    FSB[("Carpeta B")]
+    SYNCB["Watchdog + escaneo"]
+    DBB[("SQLite: cola + versiones")]
+    TXB["Cliente TCP"]
+    RXB --> FSB --> SYNCB --> DBB --> TXB
   end
-  CA --> NET --> RB
-  RB -. "ACK o ERROR" .-> CA
-  %% Para invertir la dirección, Equipo B actúa como emisor y Equipo A como receptor.
+  TXA --> CANAL --> RXB
+  TXB --> CANAL --> RXA
