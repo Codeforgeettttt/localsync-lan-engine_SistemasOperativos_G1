@@ -1,18 +1,11 @@
-%% DISEÑO FUTURO: sincronización automática, NO implementada.
-%% El flujo muestra requisitos propuestos; la transferencia TCP actual es manual.
+%% Flujo actual de replicación; solo el consenso multimaestro permanece fuera de alcance.
 flowchart TD
-  A["1. Evento filesystem Watchdog / inotify - PENDIENTE"]
-  B["2. Debounce y filtrado - PENDIENTE"]
-  C["3. Calcular SHA-256 - IMPLEMENTADO"]
-  D["4. Metadatos y cola SQLite - NO INTEGRADO"]
-  E["5. Preparar envío - IMPLEMENTADO MANUALMENTE"]
-  F["6. Enviar por TCP y ACK - IMPLEMENTADO MANUALMENTE"]
-  G["7. Verificar y publicar - IMPLEMENTADO"]
-  H["8. Tombstones y reconciliación - PENDIENTE"]
-  A --> B
-  B --> C
-  C --> D
-  D --> E
-  E --> F
-  F --> G
-  G --> H
+  A["1. Evento de cambio Watchdog - IMPLEMENTADO"]
+  B["2. Estabilidad + escaneo periódico - IMPLEMENTADO"]
+  C["3. SHA-256 - IMPLEMENTADO"]
+  D["4. Cola SQLite persistente - IMPLEMENTADO"]
+  E["5. Reconexión y reintentos - IMPLEMENTADO"]
+  F["6. CREATE_RESUME: negociar offset y enviar - IMPLEMENTADO"]
+  G["7. Validación SHA, backup y publicación - IMPLEMENTADO"]
+  H["8. ACK y actualizar snapshot sin rebote - IMPLEMENTADO"]
+  A --> B --> C --> D --> E --> F --> G --> H
