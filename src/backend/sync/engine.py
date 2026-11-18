@@ -387,7 +387,7 @@ class AutoSync:
                     self.db.enqueue(job["peer_id"],job["path"],"CREATE",sha)
                     return
                 enviar_archivo(file,job["host"],job["port"],auth_token=token,
-                              ruta_remota=job["path"],timeout=5,reintentos=0)
+                              ruta_remota=job["path"],timeout=5,reintentos=0,reanudar=True)
             self.db.finish(job["id"])
             self.event("SYNC_OK",f"{job['operation']} {job['path']} -> {job['host']}:{job['port']}")
         except (OSError,ValueError,PermissionError,ConnectionError) as exc:
