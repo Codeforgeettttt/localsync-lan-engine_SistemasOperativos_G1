@@ -170,7 +170,7 @@
       buttons.append(link);
     } else {
       makeButton("⇧ Enviar", async () => {
-        const result = await post("/api/lan/enviar", {...endpoint(),ruta:file.ruta,reintentos:2});
+        const result = await post("/api/lan/enviar", {...endpoint(),ruta:file.ruta,reintentos:2,reanudar:$("resumeTransfers").checked});
         notify("Envío completado con ACK. SHA-256: " + result.sha256.slice(0,16) + "…");
         await loadLAN(); await refreshFiles();
       });
@@ -449,7 +449,7 @@
       $("sendStatus").className = "operation-status busy";
       $("sendStatus").textContent = "Transfiriendo archivos por TCP. No cierres esta ventana.";
       try {
-        const result=await post("/api/lan/enviar-carpeta",{...endpoint(),prefijo:"LocalSync"});
+        const result=await post("/api/lan/enviar-carpeta",{...endpoint(),prefijo:"LocalSync",reanudar:$("resumeTransfers").checked});
         $("sendStatus").textContent = result.mensaje;
         $("sendStatus").className = result.errores ? "operation-status error" : "operation-status";
         notify(result.mensaje,result.errores>0);
