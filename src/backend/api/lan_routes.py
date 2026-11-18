@@ -20,7 +20,7 @@ import sys
 import tempfile
 import threading
 import time
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, Response
@@ -59,6 +59,15 @@ class Envio(NodoDestino):
 class EnvioCarpeta(NodoDestino):
     subcarpeta: str = Field(default="", max_length=512)
     prefijo: str = Field(default="", max_length=128)
+
+
+class GestionArchivo(BaseModel):
+    bandeja: Literal["envios", "recibidos"] = "envios"
+    ruta: str = Field(min_length=1, max_length=512)
+
+
+class RenombrarArchivo(GestionArchivo):
+    nuevo_nombre: str = Field(min_length=1, max_length=255)
 
 
 class InicioReceptor(BaseModel):
@@ -116,7 +125,7 @@ def _listado(base: Path, limite: int = 150) -> list[dict]:
     for ruta in sorted(base.rglob("*")):
         if len(resultado) >= limite:
             break
-        if ruta.is_symlink() or not ruta.is_file():
+        if ruta.is_symlink() or not ruta.is_file() or ruta.name.startswith(".localsync-"):
             continue
         try:
             resultado.append({"ruta": ruta.relative_to(base).as_posix(),
@@ -151,6 +160,74 @@ def descargar_recibido(ruta: str):
     if not archivo.is_file():
         raise HTTPException(404, "El archivo recibido no existe.")
     return FileResponse(archivo, filename=archivo.name, media_type="application/octet-stream")
+
+
+def _carpeta_bandeja(bandeja: str) -> Path:
+    return ENVIO if bandeja == "envios" else RECIBIDOS
+
+
+@router.get("/archivo/verificar")
+def verificar_archivo(ruta: str, bandeja: Literal["envios", "recibidos"] = "recibidos"):
+    archivo = _dentro(_carpeta_bandeja(bandeja), ruta)
+    if archivo.is_symlink() or not archivo.is_file():
+        raise HTTPException(404, "No se encontró un archivo regular para verificar.")
+    try:
+        return {"ruta": ruta, "bandeja": bandeja, "sha256": calcular_sha256(archivo),
+                "tamano": archivo.stat().st_size}
+    except OSError as exc:
+        raise HTTPException(500, f"No se pudo verificar el archivo: {exc}") from exc
+
+
+@router.delete("/archivo")
+def eliminar_archivo(datos: GestionArchivo):
+    base = _carpeta_bandeja(datos.bandeja)
+    archivo = _dentro(base, datos.ruta)
+    with _mutex:
+        if archivo.is_symlink() or not archivo.is_file():
+            raise HTTPException(404, "Archivo no encontrado o ya eliminado.")
+        try:
+            archivo.unlink()
+        except OSError as exc:
+            raise HTTPException(409, f"No se puede eliminar este archivo: {exc}") from exc
+    _evento("ARCHIVO_ELIMINADO", f"{datos.bandeja}: {datos.ruta}")
+    return {"eliminado": True, "ruta": datos.ruta, "bandeja": datos.bandeja}
+
+
+@router.patch("/archivo")
+def renombrar_archivo(datos: RenombrarArchivo):
+    if "/" in datos.nuevo_nombre or "\\" in datos.nuevo_nombre:
+        raise HTTPException(400, "Escribe un nombre de archivo, sin carpetas ni barras.")
+    base = _carpeta_bandeja(datos.bandeja)
+    origen = _dentro(base, datos.ruta)
+    destino = _dentro(base, (Path(datos.ruta).parent / datos.nuevo_nombre).as_posix()
+                     if "/" in datos.ruta else datos.nuevo_nombre)
+    with _mutex:
+        if origen.is_symlink() or not origen.is_file():
+            raise HTTPException(404, "Archivo de origen no encontrado.")
+        if destino != origen:
+            if destino.exists() or destino.is_symlink():
+                raise HTTPException(409, "Ya existe un archivo con ese nombre.")
+            try:
+                origen.rename(destino)
+            except OSError as exc:
+                raise HTTPException(409, f"No se pudo renombrar el archivo: {exc}") from exc
+    relativa = destino.relative_to(base).as_posix()
+    _evento("ARCHIVO_RENOMBRADO", f"{datos.bandeja}: {datos.ruta} → {relativa}")
+    return {"renombrado": True, "ruta": relativa, "bandeja": datos.bandeja}
+
+
+@router.get("/red")
+def informacion_red():
+    ips = set()
+    try:
+        for info in socket.getaddrinfo(socket.gethostname(), None, family=socket.AF_INET):
+            ip = ipaddress.ip_address(info[4][0])
+            if ip.is_private and not ip.is_loopback and not ip.is_link_local:
+                ips.add(str(ip))
+    except OSError:
+        pass
+    return {"ips_locales": sorted(ips), "puerto_sugerido": 9001,
+            "nota": "Usa la IP del adaptador conectado a la misma red que el otro equipo."}
 
 
 @router.post("/archivos")
@@ -342,7 +419,10 @@ def _ejecutar_demo(accion: str):
             codigo = proceso.wait(timeout=20)
         with _demo_lock:
             _demo_state["codigo"] = codigo
-            _demo_state["estado"] = "aprobado" if codigo == 0 else "fallido"
+            _demo_state["estado"] = (
+                "sin_ejecutar" if accion == "limpiar" and codigo == 0
+                else "aprobado" if codigo == 0 else "fallido"
+            )
     except Exception as exc:
         with _demo_lock:
             _demo_state["estado"] = "fallido"
