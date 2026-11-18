@@ -80,6 +80,7 @@
                 <label class="field"><span>Modo de escucha</span><select id="receiverMode"><option value="local">Solo este equipo · 127.0.0.1</option><option value="lan">Red local · 0.0.0.0</option></select></label>
                 <label class="field"><span>Puerto receptor</span><input id="receiverPort" type="number" min="1024" max="65535" value="9001"></label>
               </div>
+              <div class="field"><label><input id="syncReceiverShared" type="checkbox" style="width:auto;min-height:0;margin-right:8px"> Recibir directamente en la carpeta sincronizada (replicación bidireccional)</label><small style="color:var(--muted)">Solo actívalo en equipos de confianza. Los archivos se actualizan automáticamente y se conserva un respaldo antes de sobrescribir.</small></div>
               <div class="actions"><button class="btn btn-primary" id="startReceiver">● &nbsp;Iniciar receptor</button><button class="btn btn-outline" id="stopReceiver">Detener</button></div>
               <div class="hint"><span>ⓘ</span> Para usar la LAN, genera un token abajo y configúralo también en el emisor.</div>
             </article>
@@ -123,7 +124,7 @@
             </article>
             <article class="panel"><div class="panel-head"><div><div class="eyebrow">MOTOR AUTOMÁTICO</div><h2>Vigilancia de carpeta</h2></div><span id="syncBadge" class="tag muted">DETENIDA</span></div>
               <p class="panel-description">Carpeta sincronizada de este equipo: <code id="syncPath">carpeta_sincronizada/</code></p>
-              <div class="hint"><span>ⓘ</span> Los archivos nuevos o modificados se detectan aproximadamente cada segundo. Si el par está desconectado, quedan en SQLite y se reintentan.</div>
+              <div class="hint"><span>ⓘ</span> Watchdog detecta cambios y una revisión periódica confirma los archivos. Si un par está desconectado, los envíos permanecen en SQLite y se reintentan.</div>
               <label class="field" style="margin-top:18px"><span><input id="syncEnableDeletes" type="checkbox" style="width:auto;min-height:0;margin-right:8px"> Propagar borrados remotos (opt-in)</span></label>
               <p class="panel-description">Para permitir borrados, el receptor remoto también debe iniciar con la opción correspondiente. Los borrados se archivan, no se destruyen permanentemente.</p>
               <div class="actions"><button id="syncStart" class="btn btn-primary">▶ Iniciar sincronización</button><button id="syncStop" class="btn btn-outline">■ Detener</button></div>
@@ -131,7 +132,7 @@
           </div>
           <div class="panel"><div class="panel-head"><div><div class="eyebrow">REINTENTOS Y EVENTOS</div><h2>Estado de sincronización</h2></div><button id="syncRefresh" class="btn btn-outline btn-small">Actualizar</button></div><div id="syncQueueList" class="file-list"><div class="empty-state">No hay trabajos pendientes.</div></div><div id="syncEvents" class="event-list" style="margin-top:14px"></div></div>
           <div class="panel"><div class="panel-head"><div><div class="eyebrow">RESPALDOS</div><h2>Versiones recuperables</h2></div><button id="syncLoadVersions" class="btn btn-outline btn-small">Ver versiones</button></div><p class="panel-description">LocalSync conserva respaldos de contenidos detectados. Restaurar una versión hace que vuelva a aparecer en la carpeta vigilada.</p><div id="syncVersions" class="file-list"><div class="empty-state">Consulta versiones para restaurar contenidos.</div></div></div>
-          <div class="notice"><span>ⓘ</span><p><strong>Sincronización controlada:</strong> la carpeta vigilada es distinta de la carpeta de recepción, para evitar ciclos y borrados accidentales. Es replicación automática de salida hacia pares autorizados, no edición simultánea multimaestro de la misma carpeta.</p></div>
+          <div class="notice"><span>ⓘ</span><p><strong>Sincronización controlada:</strong> la recepción en la carpeta sincronizada es opcional, requiere token y mantiene respaldos. Los cambios entrantes no se reenvían de inmediato al origen. No hay resolución automática de ediciones concurrentes: la última versión recibida se aplica y la anterior queda respaldada.</p></div>
         </section>
 
         <section class="view" data-view="laboratorio" hidden>
