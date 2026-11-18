@@ -31,8 +31,7 @@ echo NOTA: abre Docker Desktop antes de iniciar la simulacion virtual.
 echo La GUI escucha SOLO en localhost. Para transferir a otro
 echo computador, usa el receptor TCP en modo LAN con token.
 echo.
-start "" "http://127.0.0.1:8080/"
-".venv\Scripts\python.exe" -m uvicorn src.backend.api.routes:app --host 127.0.0.1 --port 8080
+".venv\Scripts\python.exe" scripts\iniciar_panel.py
 if errorlevel 1 (
   echo.
   echo El panel no pudo iniciarse. Revisa si el puerto 8080 esta ocupado.
