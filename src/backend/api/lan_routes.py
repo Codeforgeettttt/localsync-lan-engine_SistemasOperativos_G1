@@ -402,6 +402,8 @@ def iniciar_receptor(datos: InicioReceptor):
         try:
             nodo = NodoP2PTCP(
                 host, datos.puerto, destino_base, auth_token=token,
+                tls_cert=os.getenv("LOCALSYNC_TLS_CERT") or None,
+                tls_key=os.getenv("LOCALSYNC_TLS_KEY") or None,
                 allow_delete=datos.permitir_borrado,
                 on_conflict="overwrite" if sync_engine else "keep-both",
                 on_received=notificar_recibido,
