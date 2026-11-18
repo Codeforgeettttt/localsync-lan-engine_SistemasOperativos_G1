@@ -1,15 +1,19 @@
-# Auditoría LocalSync — Transferencia P2P en LAN (Valery)
+# Auditoría LocalSync — Transferencia P2P en LAN (Grupo G1)
 
-**Objetivo:** comprobar envío manual A→B y B→A, archivos y carpetas, integridad SHA-256, autenticación y recuperación básica por reintentos.  
+**Objetivo:** comprobar envío manual A→B y B→A, archivos y carpetas, integridad SHA-256, autenticación y recuperación básica por reintentos.
+
+**Estado de evidencia:** el grupo ha reportado una prueba satisfactoria entre computadores físicos; registra en un acta los valores y capturas reales siguiendo [PRUEBAS_Y_VALIDACION.md](../documentacion/PRUEBAS_Y_VALIDACION.md). Este manual ofrece los pasos reproducibles, no sustituye esa evidencia.  
 **Alcance honesto:** no hay sincronización automática con Watchdog, propagación de DELETE/MODIFY, TLS obligatorio, reanudación por bloques ni cola persistente.
 
 ## 0. Preparación en ambos equipos Ubuntu
 
-Desde la raíz del repositorio en la rama de Valery (o en main después de fusionar el PR):
+Si se usa Windows, el panel se inicia con `iniciar_localsync.bat` y el hash se verifica con `Get-FileHash -Algorithm SHA256`. Para operar desde GUI, consultar [MANUAL_USUARIO.md](../documentacion/MANUAL_USUARIO.md).
+
+Desde la raíz del repositorio, en la versión integrada en `main`:
 
 ```bash
-git fetch origin feature/motor-p2p-pruebas
-git switch feature/motor-p2p-pruebas
+git switch main
+git pull origin main
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
