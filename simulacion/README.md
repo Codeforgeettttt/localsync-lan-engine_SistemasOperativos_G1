@@ -6,6 +6,8 @@ Este laboratorio simula **dos equipos Linux independientes** con Docker Compose.
 
 ## Requisitos
 
+**Alternativa sin Docker:** puedes ejecutar `python simulacion/demo_local.py` o usar **Probar sin Docker** desde la GUI. Esa alternativa inicia dos sockets TCP en un mismo computador; no simula dos contenedores Linux ni dos PC físicas.
+
 - Docker Desktop con motor Linux iniciado (Windows) o Docker Engine + Compose v2 (Ubuntu).
 - Python 3.10+ instalado en el computador anfitrión.
 - Internet la primera vez para descargar `python:3.11-slim`.
@@ -14,11 +16,11 @@ No es necesario instalar FastAPI ni dependencias Python adicionales en el anfitr
 
 ## Un comando para ejecutar toda la prueba
 
-Desde la raíz del repositorio, en la rama de Valery:
+Desde la raíz del repositorio, sobre la rama `main` ya integrada:
 
 ```bash
-git fetch origin
-git switch feature/motor-p2p-pruebas
+git switch main
+git pull origin main
 python simulacion/demo.py
 ```
 
@@ -86,3 +88,5 @@ En GitHub Actions se usa `python simulacion/demo.py --cleanup-after` para ejecut
 **Token incorrecto:** si hay una variable LOCALSYNC_AUTH_TOKEN predefinida, debe tener al menos 16 caracteres. Si no existe, el script genera una clave efímera.
 
 **Ejecuciones repetidas:** cada prueba crea un nombre de lote nuevo, evitando colisiones con archivos de auditorías anteriores.
+
+**Uso desde la GUI actual:** iniciar `iniciar_localsync.bat` (Windows) o `bash iniciar_localsync.sh` (Ubuntu), abrir `http://127.0.0.1:8080/` y entrar en **Laboratorio virtual**. Allí hay botones separados para **Ejecutar Docker (dos Linux)** y **Probar sin Docker**. La evidencia de GUI corresponde a esa ejecución en memoria, no a un historial permanente. Más detalle en [Manual de usuario](../documentacion/MANUAL_USUARIO.md).
