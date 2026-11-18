@@ -331,7 +331,8 @@ def enviar(datos: Envio):
     try:
         enviar_archivo(fuente, host, datos.puerto, timeout=12,
                        auth_token=_token(datos.token), ruta_remota=datos.ruta,
-                       reintentos=datos.reintentos, **_tls_kwargs(host))
+                       reintentos=datos.reintentos, reanudar=datos.reanudar,
+                       **_tls_kwargs(host))
     except (OSError, ValueError, PermissionError) as exc:
         detalle = _mensaje_red(exc, host, datos.puerto)
         _evento("ENVIO_ERROR", f"{datos.ruta}: {detalle}")
