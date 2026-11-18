@@ -168,6 +168,9 @@ class AutoSync:
         if self.root == self.backup_dir or self.root in self.backup_dir.parents:
             raise ValueError("Los respaldos deben estar fuera de la carpeta vigilada")
         self._stop = threading.Event()
+        self._wake = threading.Event()
+        self._observer = None
+        self._watchdog_enabled = False
         self._thread = None
         self._credentials: dict[tuple[str,int],str] = {}
         self._tls_ca: str | None = None
@@ -206,6 +209,26 @@ class AutoSync:
             self.propagate_deletes = propagate_deletes
             self._first_scan = True
             self._stop.clear()
+            self._wake.clear()
+            # Watchdog acelera la detección por eventos nativos; el escaneo
+            # periódico sigue siendo la fuente de verdad y permite recuperarse.
+            try:
+                from watchdog.observers import Observer
+                from watchdog.events import FileSystemEventHandler
+
+                wake = self._wake
+                class Changed(FileSystemEventHandler):
+                    def on_any_event(self, event):
+                        if ".localsync-" not in event.src_path:
+                            wake.set()
+                observer = Observer()
+                observer.schedule(Changed(), str(self.root), recursive=True)
+                observer.start()
+                self._observer = observer
+                self._watchdog_enabled = True
+            except (OSError, ImportError, RuntimeError):
+                self._observer = None
+                self._watchdog_enabled = False
             self._thread = threading.Thread(target=self._run, name="localsync-autosync", daemon=True)
             self._thread.start()
             self.event("SYNC_INICIADO", "Vigilancia automática habilitada")
@@ -213,6 +236,12 @@ class AutoSync:
 
     def stop(self):
         self._stop.set()
+        self._wake.set()
+        if self._observer is not None:
+            self._observer.stop()
+            self._observer.join(timeout=4)
+            self._observer = None
+        self._watchdog_enabled = False
         with self._lock:
             thread = self._thread
         if thread and thread.is_alive():
@@ -223,7 +252,8 @@ class AutoSync:
         with self._lock:
             active = bool(self._thread and self._thread.is_alive())
             events = list(self._events)
-        return {"activo":active,"carpeta":str(self.root),
+        return {"activo":active,"watchdog_activo":self._watchdog_enabled,
+                "carpeta":str(self.root),
                 "borrados_remotos":self.propagate_deletes,"pares":self.db.peers(),
                 "historial":events,**self.db.stats()}
 
@@ -348,4 +378,5 @@ class AutoSync:
                 self.dispatch()
             except Exception as exc:
                 self.event("SYNC_ERROR",f"{type(exc).__name__}: {str(exc)[:140]}")
-            self._stop.wait(1.0)
+            self._wake.wait(1.0)
+            self._wake.clear()
