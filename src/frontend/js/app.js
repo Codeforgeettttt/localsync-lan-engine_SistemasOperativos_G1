@@ -131,7 +131,8 @@
     if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error("Puerto de receptor inválido.");
     const result = await post("/api/lan/receptor/iniciar",
       {modo_lan:lan,puerto:port,token:$("sharedToken").value,
-       permitir_borrado:$("syncEnableDeletes").checked});
+       permitir_borrado:$("syncEnableDeletes").checked,
+       carpeta_compartida:$("syncReceiverShared").checked});
     $("remotePort").value = String(result.puerto);
     if (!lan) $("remoteHost").value = "127.0.0.1";
     notify(lan ? "Receptor LAN iniciado; usa el mismo token en el otro equipo."
