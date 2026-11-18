@@ -357,7 +357,7 @@ def enviar_carpeta_completa(datos: EnvioCarpeta):
         correctos, errores = enviar_carpeta(
             fuente, host, datos.puerto, timeout=12,
             auth_token=_token(datos.token), prefijo_remoto=datos.prefijo,
-            reintentos=1, **_tls_kwargs(host))
+            reintentos=1, reanudar=datos.reanudar, **_tls_kwargs(host))
     except (OSError, ValueError, PermissionError) as exc:
         raise HTTPException(502, f"Error enviando carpeta: {exc}") from exc
     _evento("CARPETA_ENVIADA", f"{correctos} correctos, {errores} fallidos")
