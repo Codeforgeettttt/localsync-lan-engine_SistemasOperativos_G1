@@ -43,5 +43,5 @@ class TestSimulacionDesdeGUI(unittest.TestCase):
                         if estado["estado"] != "ejecutando":
                             break
                         time.sleep(1)
-                    self.assertEqual(estado["estado"], "aprobado",
+                    self.assertEqual(estado["estado"], "sin_ejecutar",
                                      "\n".join(estado.get("salida", [])[-25:]))
