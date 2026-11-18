@@ -98,7 +98,8 @@
           <div class="panel file-panel">
             <div class="panel-head"><div><div class="eyebrow">BANDEJA DE ENVÍO</div><h2>Archivos preparados</h2><p class="panel-description">Puedes seleccionar archivos o carpetas completas. Hasta 100 MiB por archivo.</p></div><div class="head-actions"><label class="btn btn-outline upload-button">+ Archivos<input type="file" id="uploadFiles" multiple hidden></label><label class="btn btn-outline upload-button">▣ Carpeta<input type="file" id="uploadFolder" webkitdirectory directory multiple hidden></label></div></div>
             <div class="dropzone" id="dropZone" role="button" tabindex="0" aria-label="Cargar archivos"><div class="drop-icon">⇧</div><strong>Arrastra tus archivos aquí</strong><small>O usa «Archivos» y «Carpeta» para seleccionarlos</small></div>
-            <div class="operation-status" id="uploadStatus" role="status" aria-live="polite">Puedes arrastrar archivos, seleccionarlos o elegir una carpeta completa.</div><div id="outgoingFiles" class="file-list"><div class="empty-state">Todavía no hay archivos preparados.</div></div>
+            <div class="operation-status" id="uploadStatus" role="status" aria-live="polite">Puedes arrastrar archivos, seleccionarlos o elegir una carpeta completa.</div><label class="field"><span><input id="resumeTransfers" type="checkbox" checked style="width:auto;min-height:0;margin-right:8px"> Reanudar envíos interrumpidos (recomendado)</span></label>
+            <div id="outgoingFiles" class="file-list"><div class="empty-state">Todavía no hay archivos preparados.</div></div>
             <div class="file-toolbar"><div><small id="outgoingCount">0 archivos preparados</small><div id="sendStatus" class="operation-status" role="status" aria-live="polite"></div></div><button class="btn btn-primary" id="sendAll">⇧ &nbsp;Enviar todos los archivos</button></div>
           </div>
           <div class="panel file-panel">
