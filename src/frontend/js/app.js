@@ -2,7 +2,7 @@
 (() => {
   "use strict";
   const $ = (id) => document.getElementById(id);
-  const state = {view: "resumen", files: {envios:[], recibidos:[]}, demo: null, toastTimer: null};
+  const state = {view: "resumen", files: {envios:[], recibidos:[]}, demo: null, toastTimer: null, lastApiError: ""};
 
   function notify(message, error = false) {
     const box = $("toast");
@@ -93,11 +93,22 @@
       badge($("receiverBadge"), active ? "EN LÍNEA" : "APAGADO", active ? "" : "muted");
       $("startReceiver").disabled = active; $("stopReceiver").disabled = !active;
       renderEvents(r.historial);
+      state.lastApiError = "";
     } catch(e) {
       $("statReceiver").textContent = "No disponible";
       $("sidebarState").textContent = "API no disponible";
-      notify(e.message,true);
+      if (state.lastApiError !== e.message) notify(e.message,true);
+      state.lastApiError = e.message;
     }
+  }
+  async function loadIPs() {
+    try {
+      const info = await api("/api/lan/red");
+      const ips = info.ips_locales || [];
+      $("localIpInfo").textContent = ips.length
+        ? "IP(s) detectadas: " + ips.join(", ") + ". Para recibir desde otro equipo, utiliza la IP del adaptador de tu LAN."
+        : "No se detectó una IP privada. En Windows usa ipconfig; en Ubuntu usa hostname -I.";
+    } catch { $("localIpInfo").textContent = "Consulta tu IP con ipconfig (Windows) o hostname -I (Ubuntu)."; }
   }
   function endpoint() {
     const host = $("remoteHost").value.trim(), port = Number($("remotePort").value);
@@ -207,17 +218,22 @@
   }
   async function upload(files) {
     if (!files || !files.length) return;
-    let count = 0;
-    for (const file of Array.from(files)) {
-      if (file.size > 100*1024*1024) {notify(file.name+" supera 100 MiB",true);continue;}
+    let count = 0, failed = 0;
+    $("uploadStatus").className = "operation-status busy";
+    for (const [i,file] of Array.from(files).entries()) {
+      $("uploadStatus").textContent = "Cargando " + (i+1) + "/" + files.length + ": " + file.name;
+
+      if (file.size > 100*1024*1024) {failed++;notify(file.name+" supera 100 MiB",true);continue;}
       const form = new FormData();
       form.append("archivo",file,file.name);
       form.append("ruta",file.webkitRelativePath || file.name);
       try {
         await api("/api/lan/archivos",{method:"POST",body:form});
         count++;
-      } catch(e) {notify(file.name+": "+e.message,true);}
+      } catch(e) {failed++;notify(file.name+": "+e.message,true);}
     }
+    $("uploadStatus").className = failed ? "operation-status error" : "operation-status";
+    $("uploadStatus").textContent = "Carga finalizada: " + count + " preparado(s), " + failed + " error(es).";
     if (count) notify(count+" archivo(s) preparados.");
     await refreshFiles();await loadLAN();
   }
@@ -315,8 +331,19 @@
       event.preventDefault();drop.classList.remove("dragging");upload(event.dataTransfer.files);
     });
     $("sendAll").addEventListener("click",()=>action($("sendAll"),async () => {
-      const result=await post("/api/lan/enviar-carpeta",{...endpoint(),prefijo:"LocalSync"});
-      notify(result.mensaje,result.errores>0);await loadLAN();await refreshFiles();
+      $("sendStatus").className = "operation-status busy";
+      $("sendStatus").textContent = "Transfiriendo archivos por TCP. No cierres esta ventana.";
+      try {
+        const result=await post("/api/lan/enviar-carpeta",{...endpoint(),prefijo:"LocalSync"});
+        $("sendStatus").textContent = result.mensaje;
+        $("sendStatus").className = result.errores ? "operation-status error" : "operation-status";
+        notify(result.mensaje,result.errores>0);
+        await loadLAN();await refreshFiles();
+      } catch(e) {
+        $("sendStatus").textContent = "No se completó el envío: "+e.message;
+        $("sendStatus").className = "operation-status error";
+        throw e;
+      }
     }));
     $("runSimulation").addEventListener("click",()=>action($("runSimulation"),async () => {
       await post("/api/lan/simulacion/iniciar");
@@ -331,7 +358,7 @@
   }
   async function start() {
     events();clock();
-    await Promise.all([loadLAN(),refreshFiles(),loadDemo()]);
+    await Promise.all([loadLAN(),refreshFiles(),loadDemo(),loadIPs()]);
     setInterval(clock,30000);
     setInterval(()=>{if(!document.hidden)loadLAN();},5000);
     setInterval(()=>{
