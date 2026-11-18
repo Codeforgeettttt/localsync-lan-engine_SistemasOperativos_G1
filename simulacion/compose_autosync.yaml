@@ -1,0 +1,40 @@
+# Añadir al compose base: la misma LAN Docker ahora replica archivos automáticamente.
+# No publica ningún puerto al anfitrión. Solo para pruebas aisladas.
+services:
+  nodo-a:
+    command:
+      - python
+      - -m
+      - src.backend.sync.worker
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "9001"
+      - --peer
+      - nodo-b
+      - --root
+      - /data/sync
+      - --state-db
+      - /data/sync.db
+      - --versions
+      - /data/versions
+      - --enable-deletes
+
+  nodo-b:
+    command:
+      - python
+      - -m
+      - src.backend.sync.worker
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "9001"
+      - --peer
+      - nodo-a
+      - --root
+      - /data/sync
+      - --state-db
+      - /data/sync.db
+      - --versions
+      - /data/versions
+      - --enable-deletes
