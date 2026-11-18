@@ -73,6 +73,7 @@ class RenombrarArchivo(GestionArchivo):
 
 
 class InicioReceptor(BaseModel):
+    carpeta_compartida: bool = False
     permitir_borrado: bool = False
     modo_lan: bool = False
     puerto: int = Field(default=9001, ge=1024, le=65535)
@@ -377,17 +378,32 @@ def iniciar_receptor(datos: InicioReceptor):
             raise HTTPException(409, "El receptor ya está encendido.")
         host = "0.0.0.0" if datos.modo_lan else "127.0.0.1"
         token = _token(datos.token)
+        if datos.carpeta_compartida and (not token or len(token) < 16):
+            raise HTTPException(400, "Carpeta compartida requiere token de al menos 16 caracteres")
         if datos.permitir_borrado and (not token or len(token) < 16):
             raise HTTPException(400, "Borrado remoto requiere token de al menos 16 caracteres")
         if datos.modo_lan and (not token or len(token) < 16):
             raise HTTPException(400, "Para habilitar LAN configura un token compartido de al menos 16 caracteres.")
+        sync_engine = None
+        if datos.carpeta_compartida:
+            from src.backend.api.sync_routes import get_engine
+            sync_engine = get_engine()
+        destino_base = sync_engine.root if sync_engine else RECIBIDOS
+
+        def notificar_recibido(destino, msg):
+            _evento("RECEPCION_OK",
+                    f"{destino.name} · {msg['tamano_bytes']} bytes · SHA-256 {msg['hash_sha256'][:16]}…")
+            if sync_engine:
+                sync_engine.register_incoming(destino, msg)
+
         try:
             nodo = NodoP2PTCP(
-                host, datos.puerto, RECIBIDOS, auth_token=token,
+                host, datos.puerto, destino_base, auth_token=token,
                 allow_delete=datos.permitir_borrado,
-                on_received=lambda destino, msg: _evento(
-                    "RECEPCION_OK",
-                    f"{destino.name} · {msg['tamano_bytes']} bytes · SHA-256 {msg['hash_sha256'][:16]}…"),
+                on_conflict="overwrite" if sync_engine else "keep-both",
+                on_received=notificar_recibido,
+                on_before_overwrite=sync_engine.backup_before_overwrite if sync_engine else None,
+                on_deleted=sync_engine.register_remote_deleted if sync_engine else None,
             )
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
@@ -411,7 +427,8 @@ def iniciar_receptor(datos: InicioReceptor):
         except OSError as exc:
             _evento("DESCUBRIMIENTO_NO_DISPONIBLE", f"UDP 9002: {exc}")
     _evento("RECEPTOR_INICIADO", f"{host}:{datos.puerto}")
-    return {"activo": True, "host": host, "puerto": datos.puerto}
+    return {"activo": True, "host": host, "puerto": datos.puerto,
+            "carpeta_compartida": datos.carpeta_compartida}
 
 
 @router.post("/receptor/detener")
