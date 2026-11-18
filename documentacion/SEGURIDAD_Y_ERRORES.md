@@ -93,10 +93,10 @@ flowchart TD
 
 - El cliente reintenta ante **ciertos errores de conexión**, no ante todos los rechazos semánticos (por ejemplo, ruta inválida o token incorrecto).
 - La carpeta se procesa como un **conjunto de envíos individuales**: algunos archivos pueden llegar y otros fallar. La respuesta informa correctos y errores, no es una transacción de carpeta con rollback.
-- No hay reanudación parcial; cada reintento comienza desde el inicio del archivo.
+- Con `CREATE_RESUME` los envíos pueden reanudarse desde un temporal persistente; el envío `CREATE` tradicional y los reintentos sin `reanudar` comienzan desde el primer byte.
 - El historial de operaciones del panel es **volátil** (`deque` en RAM), no un registro de auditoría persistente ni inmutable.
 - La cola persistente SQLite **no** está conectada al transporte.
-- El protocolo reconoce nombres `MODIFY` y `DELETE`, pero el servidor **no aplica** esas operaciones a destinos remotos.
+- `DELETE` sí puede aplicarse al receptor **solo cuando se habilita expresamente y se autentica mediante HMAC**; el archivo se mueve a la papelera interna. Las modificaciones automáticas utilizan `CREATE_RESUME`/`CREATE`, no una operación `MODIFY` independiente.
 
 ## 5. Lista de verificación antes de usar en una LAN
 
@@ -113,6 +113,55 @@ flowchart TD
 
 ## 6. Recomendaciones futuras (no implementadas)
 
-Cifrado TLS obligatorio por defecto, certificados gestionados, identidad por dispositivo, lista de peers autorizados, limitación de velocidad y tamaño total por sesión, cancelación de envíos, auditoría persistente, endurecimiento de rutas a nivel de descriptor, reanudación por fragmentos y detección/replicación automáticas.
+Cifrado TLS obligatorio por defecto, certificados gestionados, cuotas globales de almacenamiento para parciales y respaldos, cancelación de envíos, limpieza de fragmentos antiguos, auditoría persistente inmutable, protección avanzada contra carreras de filesystem y consenso para ediciones simultáneas. `CREATE_RESUME`, Watchdog, cola SQLite y réplica entre pares ya existen.
 
 **Relación con el proyecto:** [Protocolo TCP](PROTOCOLO_TCP.md), [arquitectura](ARQUITECTURA.md), [manual](MANUAL_USUARIO.md).
+
+
+## 7. Seguridad de la sincronización automática (actualización)
+
+### Archivos entrantes y versiones
+
+- La opción **Recibir directamente en carpeta sincronizada** está desactivada por defecto. Cuando se activa, el nodo remoto autorizado puede actualizar el contenido del directorio vigilado.
+- Antes de sobrescribir una versión diferente, LocalSync guarda una copia por hash en el directorio de versiones y registra el respaldo en `sync_versions`. Un usuario puede restaurarla desde la GUI.
+- Los archivos internos `.localsync_partials` y `.localsync_deleted` se excluyen de la vigilancia y están reservados en la validación de rutas remotas.
+- El protocolo `CREATE_RESUME` conserva el temporal cuando la conexión se corta; **no lo publica hasta verificar SHA-256**. Los parciales antiguos consumen espacio: no se purgan automáticamente.
+- Los respaldos del motor automático **son locales y persistentes**; no están cifrados en reposo por la aplicación. Asegurar permisos del filesystem y, cuando sea necesario, cifrado de disco.
+
+### Descubrimiento LAN
+
+- El anuncio UDP 9002 exige un desafío HMAC con clave compartida y firma de la respuesta. El token no se envía directamente.
+- Encontrar un receptor **no lo añade automáticamente** a la lista de pares. El usuario autoriza la IP desde la GUI.
+- Bloquear UDP 9002 impide la búsqueda, **no el TCP manual**: se puede utilizar la IP del receptor.
+- No usar el descubrimiento como sustituto de TLS o verificación del origen físico.
+
+### Borrados y protección contra pérdida
+
+- `DELETE` remoto es **opt-in en ambos extremos**. El emisor requiere token y el receptor debe permitir `allow_delete`.
+- En lugar de destrucción inmediata, el receptor mueve el archivo a `.localsync_deleted` para recuperación manual. Los borrados repetidos se confirman como operación idempotente.
+- La recepción sincronizada puede reemplazar contenido distinto si está activada; conserva la versión anterior antes del reemplazo.
+- **No hay consenso distribuido** para conflictos de ediciones simultáneas. La última versión aplicada prevalece, respaldos aparte.
+
+### Control de credenciales
+
+- Los secretos escritos en la GUI permanecen en memoria del proceso. La tabla `sync_peers` persiste IP/puerto pero no el token.
+- Para servicio permanente se puede proporcionar el secreto desde `/etc/localsync/autosync.env` con permisos root-only; nunca colocarlo en una variable pública o commit.
+- `LOCALSYNC_TLS_CERT`, `LOCALSYNC_TLS_KEY`, `LOCALSYNC_TLS_CA` y `LOCALSYNC_TLS_SERVER_NAME` permiten cifrado cuando se configuran correctamente. HMAC por sí solo **no** cifra.
+- El panel HTTP permanece en `127.0.0.1:8080`; al administrar dos computadoras se abren **solo los puertos TCP 9001** y opcionalmente **UDP 9002** al par autorizado.
+
+## 8. Errores adicionales del motor automático
+
+| Situación | Consecuencia | Acción |
+| --- | --- | --- |
+| Par desconectado | Trabajo queda en `sync_queue` y aumenta `tries` | Revisar IP, receptor y firewall; esperar reintento |
+| Reinicio sin token de GUI | Persisten los trabajos, pero no la clave privada del par | Volver a autorizar con token o configurar autostart protegido |
+| Cambio de contenido durante envío | Hash anunciado puede dejar de coincidir | Reintentar tras estabilizar el archivo |
+| Caída a mitad de `CREATE_RESUME` | Se conserva parcial | Reenviar ruta+SHA idénticos para continuar |
+| Parcial corrupto | Se descarta tras verificación fallida | Reintentar desde el inicio |
+| Cambio simultáneo A/B | Última versión aplicada y respaldos | Revisar/restaurar versiones; evitar edición simultánea |
+| Carpeta compartida no marcada | Los archivos llegan a `archivos_recibidos`, no al espejo | Activar receptor en carpeta compartida |
+| Borrado remoto no autorizado | El receptor rechaza `DELETE` | Revisar configuración sin debilitar controles |
+| Carpeta interna reservada | Rechazo de ruta | No intentar transferir backups como nombres remotos |
+| Volumen de parciales lleno | Error de almacenamiento | Liberar espacio de forma controlada, preservar envíos relevantes |
+
+Para instalar sin exponer credenciales, seguir [DESPLIEGUE_FINAL.md](DESPLIEGUE_FINAL.md).
