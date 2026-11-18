@@ -115,8 +115,10 @@ def _host_privado(host: str) -> str:
         ip = ipaddress.ip_address(host)
     except ValueError:
         raise HTTPException(400, "Indica una IP privada o localhost (no se permiten dominios).")
-    if not (ip.is_loopback or ip.is_private or ip.is_link_local):
-        raise HTTPException(400, "Solo se permiten destinos en redes locales privadas.")
+    if not isinstance(ip, ipaddress.IPv4Address):
+        raise HTTPException(400, "Por ahora utiliza una dirección IPv4 de tu red local.")
+    if ip.is_unspecified or ip.is_multicast or ip.is_reserved or not (ip.is_loopback or ip.is_private):
+        raise HTTPException(400, "Usa una dirección IPv4 privada válida, por ejemplo 192.168.1.25.")
     return str(ip)
 
 
@@ -279,6 +281,18 @@ def _tls_kwargs(host: str) -> dict:
     return {"tls_ca": ca, "tls_server_name": os.getenv("LOCALSYNC_TLS_SERVER_NAME") or host}
 
 
+def _mensaje_red(exc: Exception, host: str, puerto: int) -> str:
+    if isinstance(exc, ConnectionRefusedError) or getattr(exc, "winerror", None) == 10061:
+        return f"Conexión rechazada en {host}:{puerto}. Inicia el receptor TCP en el otro equipo y revisa el puerto."
+    if isinstance(exc, (TimeoutError, socket.timeout)):
+        return f"Tiempo de espera agotado hacia {host}:{puerto}. Revisa IP, red Wi-Fi/LAN y firewall."
+    if isinstance(exc, PermissionError):
+        return "Autenticación rechazada: comprueba que ambos equipos usan el mismo token."
+    if isinstance(exc, ValueError):
+        return str(exc)[:200]
+    return f"No fue posible conectar con {host}:{puerto}: {str(exc)[:140]}"
+
+
 @router.post("/conexion")
 def probar_conexion(datos: NodoDestino):
     host = _host_privado(datos.host)
@@ -287,7 +301,7 @@ def probar_conexion(datos: NodoDestino):
                            auth_token=_token(datos.token), **_tls_kwargs(host))
     except (OSError, ValueError, PermissionError) as exc:
         _evento("CONEXION_FALLIDA", f"{host}:{datos.puerto}")
-        return {"conectado": False, "detalle": str(exc)[:200]}
+        return {"conectado": False, "detalle": _mensaje_red(exc, host, datos.puerto)}
     _evento("CONEXION_OK", f"{host}:{datos.puerto}")
     return {"conectado": True, "detalle": f"ACK recibido desde {host}:{datos.puerto}"}
 
@@ -303,8 +317,9 @@ def enviar(datos: Envio):
                        auth_token=_token(datos.token), ruta_remota=datos.ruta,
                        reintentos=datos.reintentos, **_tls_kwargs(host))
     except (OSError, ValueError, PermissionError) as exc:
-        _evento("ENVIO_ERROR", datos.ruta)
-        raise HTTPException(502, f"Transferencia no completada: {exc}") from exc
+        detalle = _mensaje_red(exc, host, datos.puerto)
+        _evento("ENVIO_ERROR", f"{datos.ruta}: {detalle}")
+        raise HTTPException(502, f"Transferencia no completada: {detalle}") from exc
     digest = calcular_sha256(fuente)
     _evento("ENVIO_OK", f"{datos.ruta} → {host}:{datos.puerto}")
     return {"enviado": True, "archivo": datos.ruta, "sha256": digest,
