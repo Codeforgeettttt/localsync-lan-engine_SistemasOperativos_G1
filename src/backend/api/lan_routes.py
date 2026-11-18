@@ -29,6 +29,7 @@ from pydantic import BaseModel, Field
 from config.settings import BASE_DIR
 from src.backend.core.engine import calcular_sha256
 from src.backend.network.cliente_tcp import comprobar_conexion, enviar_archivo, enviar_carpeta
+from src.backend.network.discovery import DiscoveryResponder, discover
 from src.backend.network.p2p_socket import NodoP2PTCP
 from src.backend.network.transferencia import MAX_FILE_SIZE
 
@@ -294,6 +295,17 @@ def _mensaje_red(exc: Exception, host: str, puerto: int) -> str:
     return f"No fue posible conectar con {host}:{puerto}: {str(exc)[:140]}"
 
 
+@router.post("/descubrir")
+def descubrir_nodos(datos: NodoDestino):
+    token = _token(datos.token)
+    if not token or len(token) < 16:
+        raise HTTPException(400, "Introduce el token de la LAN para encontrar los equipos")
+    try:
+        return {"equipos":discover(token)}
+    except (OSError, ValueError) as exc:
+        raise HTTPException(502, f"Error de descubrimiento UDP: {exc}") from exc
+
+
 @router.post("/conexion")
 def probar_conexion(datos: NodoDestino):
     host = _host_privado(datos.host)
@@ -390,6 +402,14 @@ def iniciar_receptor(datos: InicioReceptor):
         with _mutex:
             problema = _receiver["error"] or "No se pudo abrir el puerto TCP."
         raise HTTPException(503, problema)
+    if datos.modo_lan and token:
+        try:
+            responder = DiscoveryResponder(token, datos.puerto)
+            responder.start()
+            with _mutex:
+                _receiver["discovery"] = responder
+        except OSError as exc:
+            _evento("DESCUBRIMIENTO_NO_DISPONIBLE", f"UDP 9002: {exc}")
     _evento("RECEPTOR_INICIADO", f"{host}:{datos.puerto}")
     return {"activo": True, "host": host, "puerto": datos.puerto}
 
@@ -402,6 +422,10 @@ def detener_receptor():
         return {"activo": False}
     evento.set()
     hilo.join(timeout=5)
+    with _mutex:
+        responder = _receiver.pop("discovery", None)
+    if responder is not None:
+        responder.stop()
     if hilo.is_alive():
         raise HTTPException(503, "El receptor sigue deteniéndose.")
     _evento("RECEPTOR_DETENIDO", "Detenido desde el panel.")
