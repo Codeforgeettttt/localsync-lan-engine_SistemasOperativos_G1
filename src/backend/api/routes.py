@@ -20,14 +20,16 @@ from src.backend.core.engine import MotorSincronizacionLocal
 from src.backend.storage.db_manager import GestorBaseDatosLocal
 from src.backend.api.p2p_routes import router as p2p_router
 from src.backend.api.lan_routes import router as lan_router
+from src.backend.api.sync_routes import router as sync_router, get_engine
 
 app = FastAPI(
     title="LocalSync — Control LAN",
     description="Control local FastAPI, transferencia TCP entre nodos y laboratorio Docker.",
-    version="0.3.0-lan",
+    version="0.4.0-sync",
 )
 app.include_router(p2p_router)
 app.include_router(lan_router)
+app.include_router(sync_router)
 
 motor_local = MotorSincronizacionLocal()
 gestor_bd = GestorBaseDatosLocal(DEFAULT_DB_PATH)
@@ -61,11 +63,12 @@ def obtener_estado_nodo():
         "proyecto": "LocalSync",
         "grupo": "G1",
         "integrantes": ["Valery Michell Herrera Roca", "Daniel Felipe Rojas Gonzales"],
-        "fase_proyecto": "Prototipo funcional — transferencia TCP manual e integración LAN",
+        "fase_proyecto": "Sincronización incremental opt-in + transferencia TCP LAN",
         "es_simulacion": False,
         "advertencia_estado": (
             "Transferencia de archivos TCP, SHA-256, HMAC, TLS opcional y laboratorio Docker implementados. "
-            "Sincronización automática con Watchdog, cola persistente y borrados remotos aún pendientes."
+            "Sincronización automática por escaneo, cola SQLite, reintentos y archivado remoto opt-in disponibles; "
+            "no hay reanudación parcial ni consenso distribuido."
         ),
         "entorno_real_detectado": {
             "hostname": platform.node() or "nodo-local",
@@ -82,12 +85,14 @@ def obtener_estado_nodo():
             "tls_opcional": "IMPLEMENTADO (requiere certificado y configuración)",
             "pruebas_docker_dos_nodos": "IMPLEMENTADO Y VALIDADO EN CI",
             "esquema_sqlite3": "IMPLEMENTADO",
+            "autosync_cola_sqlite": "IMPLEMENTADO (opt-in)",
+            "versiones_locales": "IMPLEMENTADO",
+            "borrado_remoto": "IMPLEMENTADO (opt-in + papelera)",
         },
         "componentes_pendientes": {
-            "monitoreo_watchdog_inotify": "PENDIENTE",
-            "sincronizacion_bidireccional_automatica": "PENDIENTE",
-            "reconciliacion_y_tombstones": "PENDIENTE",
-            "cola_persistente_operativa": "PENDIENTE",
+            "watchdog_eventos_nativos": "PENDIENTE (observación por escaneo)",
+            "reanudacion_fragmentos": "PENDIENTE",
+            "sincronizacion_distribuida_multimaestro": "PENDIENTE",
         },
         "estado_motor_local": motor_local.obtener_estado_motor(),
         "estado_base_datos_sqlite": resumen_bd,
@@ -107,10 +112,11 @@ def inicializar_base_datos():
 @app.post("/api/control/pausa")
 def cambiar_estado_pausa(solicitud: SolicitudPausa):
     motor_local.sincronizacion_pausada = solicitud.pausar
+    if solicitud.pausar:
+        get_engine().stop()
     return {
         "sincronizacion_pausada": motor_local.sincronizacion_pausada,
-        "alcance_accion": ("Bandera de estado local; no detiene el transporte TCP. "
-                          "El observador Watchdog todavía no está implementado."),
+        "alcance_accion": "Pausa la vigilancia automática local; no detiene el receptor TCP manual.",
     }
 
 
