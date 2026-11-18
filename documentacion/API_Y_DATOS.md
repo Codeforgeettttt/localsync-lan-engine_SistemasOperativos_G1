@@ -1,6 +1,6 @@
 # Referencia de API REST, configuración y persistencia
 
-**Versión declarada por FastAPI:** `0.3.0-lan` · **Base:** `http://127.0.0.1:8080` · **Swagger:** `/docs` · **Esquema JSON:** `/openapi.json`.
+**Versión declarada por FastAPI:** `0.4.0-sync` · **Base:** `http://127.0.0.1:8080` · **Swagger:** `/docs` · **Esquema JSON:** `/openapi.json`.
 
 ## 1. Modelo de comunicación
 
@@ -18,7 +18,7 @@
 | `GET` | `/` | — | HTML de la GUI |
 | `GET` | `/api/estado` | — | Componentes, sistema operativo y diagnóstico SQLite |
 | `POST` | `/api/inicializar-bd` | — | Inicialización de esquema SQL |
-| `POST` | `/api/control/pausa` | `{"pausar":true}` | **Solo bandera en memoria**; no pausa TCP |
+| `POST` | `/api/control/pausa` | `{"pausar":true}` | Detiene la vigilancia automática, no el receptor TCP manual |
 | `GET` | `/api/lan/estado` | — | Receptor, contadores, últimos eventos |
 | `GET` | `/api/lan/red` | — | IPv4 locales detectadas (orientativo) |
 | `GET` | `/api/lan/archivos` | — | Listas de archivos de envío y recepción |
@@ -29,7 +29,7 @@ Ejemplo para consultar estado:
 curl http://127.0.0.1:8080/api/lan/estado
 ```
 
-**Advertencia:** `GET /api/estado` puede indicar que el esquema SQLite está inicializado. Eso **no implica** que la cola persistente de transferencias esté conectada al motor.
+**Arquitectura de datos:** existen dos bases separadas. El esquema académico inicial conserva sus tablas, mientras que el motor nuevo opera con `datos_locales/sync.db` y una cola, archivos y versiones que sí se actualizan automáticamente.
 
 ## 3. Endpoints de archivos
 
@@ -95,7 +95,7 @@ curl -X POST http://127.0.0.1:8080/api/lan/conexion \
   -d '{"host":"127.0.0.1","puerto":9001}'
 ```
 
-**Para LAN física** el token de al menos 16 caracteres debe coincidir en ambos equipos. No incluir tokens reales en comandos, capturas ni logs públicos.
+**Para LAN física** el token de al menos 16 caracteres debe coincidir en ambos equipos. Se puede activar `reanudar:true` en el envío manual. Para réplica A↔B, al iniciar el receptor usar `carpeta_compartida:true`, con autenticación HMAC. Los borrados necesitan además `permitir_borrado:true`, siempre de forma explícita. No incluir tokens reales en comandos, capturas ni logs públicos.
 
 ### Ruta de compatibilidad
 
@@ -134,7 +134,7 @@ erDiagram
 | `cola_sincronizacion` | Reintentos persistentes previstos | **No** |
 | `logs_auditoria` | Registros persistentes previstos | **No** |
 
-`GestorBaseDatosLocal` implementa `inicializar_esquema`, `registrar_carpeta_autorizada`, `registrar_archivo_sincronizado` y `obtener_resumen_bd`. El tráfico TCP actual no invoca una cola persistente. El `historial` de operaciones de la GUI usa una cola `deque(maxlen=60)` **en RAM**, así que se reinicia con el servidor.
+`GestorBaseDatosLocal` conserva las utilidades del esquema original. La sincronización nueva utiliza **una segunda base operativa** gestionada por `src/backend/sync/engine.py`, con cola y versiones persistentes. El historial de transferencias manuales `/api/lan/estado` sigue siendo un `deque(maxlen=60)` en RAM; el estado del motor automático se consulta por `/api/sync/estado`.
 
 ## 7. Variables de configuración
 
@@ -166,4 +166,77 @@ El archivo `config/localsync.env.example` **no se carga automáticamente** al in
 
 Un `POST /api/lan/conexion` puede devolver **HTTP 200 con `conectado:false`**, ya que representa un diagnóstico de red. Valida siempre ese campo antes de asumir éxito.
 
-**Fuente de verdad:** ruta y modelos Pydantic en `src/backend/api/lan_routes.py`; puedes consultar el esquema ejecutable en `/openapi.json`. Ver [protocolo TCP](PROTOCOLO_TCP.md) y [errores](SEGURIDAD_Y_ERRORES.md).
+**Fuente de verdad:** modelos de `src/backend/api/lan_routes.py` y `src/backend/api/sync_routes.py`; puedes consultar el esquema ejecutable en `/openapi.json`. Ver [protocolo TCP](PROTOCOLO_TCP.md) y [errores](SEGURIDAD_Y_ERRORES.md).
+
+
+## 9. API de sincronización automática (implementada)
+
+La API **solo** es accesible desde `127.0.0.1:8080`. La GUI invoca estos endpoints con JSON:
+
+| Método | Endpoint | Entrada | Resultado |
+| --- | --- | --- | --- |
+| `GET` | `/api/sync/estado` | — | Vigilancia activa, Watchdog, carpeta, pares, cola y errores |
+| `POST` | `/api/sync/pares` | `{"host":"192.168.1.25","port":9001,"token":"..."}` | Añade par autorizado por clave; **token solo en RAM** |
+| `DELETE` | `/api/sync/pares/{peer_id}` | ID numérico | Retira el par y sus trabajos pendientes |
+| `POST` | `/api/sync/iniciar` | `{"propagate_deletes":false}` | Activa vigilancia y despachador de cola |
+| `POST` | `/api/sync/detener` | `{}` | Detiene Watchdog y el despachador |
+| `POST` | `/api/sync/escanear` | `{}` | Fuerza un escaneo de la carpeta configurada |
+| `GET` | `/api/sync/versiones` | `path` opcional | Lista versiones indexadas por SHA-256 |
+| `POST` | `/api/sync/restaurar` | `{"version_id":1}` | Restaura un respaldo en carpeta vigilada |
+
+### API LAN extendida
+
+- `POST /api/lan/descubrir`: busca receptores firmados con el mismo token mediante UDP 9002 y devuelve `equipos`. **No los añade automáticamente a la lista de pares.**
+- `POST /api/lan/receptor/iniciar`: campos adicionales `carpeta_compartida` y `permitir_borrado` (ambos falsos por defecto). El primero permite aplicar los cambios entrantes directamente sobre la carpeta vigilada, con respaldo de la versión anterior.
+- `POST /api/lan/enviar` y `/enviar-carpeta`: campo `reanudar` habilita `CREATE_RESUME` y la negociación del offset.
+- `POST /api/control/pausa`: detiene el motor automático cuando `pausar=true`; no detiene el socket receptor manual.
+
+## 10. SQLite operativa y recuperación
+
+```mermaid
+erDiagram
+    SYNC_PEERS ||--o{ SYNC_QUEUE : destinatario
+    SYNC_FILES {
+      TEXT path PK
+      TEXT sha256
+      INTEGER size
+      INTEGER mtime_ns
+    }
+    SYNC_PEERS {
+      INTEGER id PK
+      TEXT host
+      INTEGER port
+      INTEGER enabled
+    }
+    SYNC_QUEUE {
+      INTEGER id PK
+      INTEGER peer_id FK
+      TEXT path
+      TEXT operation
+      TEXT sha256
+      INTEGER tries
+      TEXT state
+      REAL next_run
+      TEXT error
+      TEXT created_at
+    }
+    SYNC_VERSIONS {
+      INTEGER id PK
+      TEXT path
+      TEXT sha256
+      TEXT backup
+      TEXT created_at
+    }
+```
+
+- `sync_files`: snapshot de ruta, tamaño, modificación y SHA.
+- `sync_peers`: pares autorizados con host y puerto, **sin token en la tabla**.
+- `sync_queue`: pendiente por par/ruta (CREATE/DELETE), intento y próximo reenvío; se mantiene después de reiniciar.
+- `sync_versions`: referencia a copias respaldadas por hash y fecha; la GUI permite recuperar una versión concreta.
+- `src/bd/schema.sql`: estructura académica **heredada**, independiente de la base operativa.
+
+## 11. Configuración y despliegue
+
+Para arranque sin interacción en Ubuntu se admiten `LOCALSYNC_AUTOSTART=1`, `LOCALSYNC_SYNC_PEER`, `LOCALSYNC_SYNC_PEER_PORT`, `LOCALSYNC_AUTH_TOKEN`, `LOCALSYNC_ALLOW_REMOTE_DELETE` y rutas `LOCALSYNC_SYNC_DIR`, `LOCALSYNC_SYNC_DB`, `LOCALSYNC_VERSIONS_DIR`, `LOCALSYNC_UPLOAD_DIR`, `LOCALSYNC_RECEIVE_DIR`. TLS puede configurarse con `LOCALSYNC_TLS_CERT`, `LOCALSYNC_TLS_KEY`, `LOCALSYNC_TLS_CA` y `LOCALSYNC_TLS_SERVER_NAME`.
+
+**Nunca** pongas el token real en ejemplos, archivos compartidos o parámetros públicos. Consulta [Despliegue final](DESPLIEGUE_FINAL.md) y [Seguridad](SEGURIDAD_Y_ERRORES.md).
