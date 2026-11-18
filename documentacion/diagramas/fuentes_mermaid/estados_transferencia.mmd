@@ -1,0 +1,16 @@
+%% Estados del flujo de una transferencia individual. No hay cola persistente.
+stateDiagram-v2
+    [*] --> Preparado: Archivo en bandeja
+    Preparado --> Conectando: Usuario pulsa Enviar
+    Conectando --> Autenticando: Socket conectado
+    Conectando --> Error: Receptor inaccesible
+    Autenticando --> Enviando: Token válido o loopback sin token
+    Autenticando --> Error: Token rechazado
+    Enviando --> Verificando: Bytes completos
+    Enviando --> Reintentando: Fallo de red
+    Reintentando --> Conectando: Reenviar archivo completo
+    Verificando --> Publicado: SHA-256 correcto y política satisfecha
+    Verificando --> Error: Hash, ruta o conflicto inválido
+    Publicado --> Confirmado: ACK recibido
+    Confirmado --> [*]
+    Error --> [*]: Informar fallo; limpiar temporal si existe
