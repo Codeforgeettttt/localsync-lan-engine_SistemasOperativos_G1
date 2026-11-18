@@ -255,18 +255,22 @@
       state.demo = demo;
       const labels = {sin_ejecutar:"Sin ejecutar",ejecutando:"En ejecución",
         aprobado:"Aprobado",fallido:"Fallido"};
-      const label = labels[demo.estado] || demo.estado;
+      const label = demo.accion === "local" && demo.estado === "aprobado"
+        ? "Prueba local aprobada" : (labels[demo.estado] || demo.estado);
       $("statDemo").textContent = label;
       $("labResult").textContent = label;
       badge($("labBadge"),label.toUpperCase(),
         demo.estado === "aprobado" ? "" : demo.estado === "fallido" ? "danger" : "muted");
       $("labStateDescription").textContent =
-        demo.estado === "aprobado" ? "Dos nodos y todas las transferencias verificadas."
+        demo.estado === "aprobado" && demo.accion === "local"
+          ? "Dos sockets reales en localhost; no son contenedores Linux ni dos computadores físicos."
+        : demo.estado === "aprobado" ? "Dos nodos y todas las transferencias verificadas."
         : demo.estado === "fallido" ? "Consulta los registros para identificar el error."
         : demo.estado === "ejecutando" ? "Los contenedores están ejecutando las comprobaciones..."
         : demo.docker_disponible ? "Docker está disponible. Ejecuta la simulación."
         : "Instala o inicia Docker Desktop para ejecutar este laboratorio.";
       $("runSimulation").disabled = demo.estado === "ejecutando" || !demo.docker_disponible;
+      $("runLocalSimulation").disabled = demo.estado === "ejecutando";
       $("cleanupSimulation").disabled = demo.estado === "ejecutando" || !demo.docker_disponible;
       const pre = $("labLog");
       const output = demo.salida.length ? demo.salida.join("\n")
@@ -349,6 +353,11 @@
       await post("/api/lan/simulacion/iniciar");
       notify("Simulación Docker iniciada.");
       showView("laboratorio");await loadDemo();
+    }));
+    $("runLocalSimulation").addEventListener("click",()=>action($("runLocalSimulation"),async () => {
+      await post("/api/lan/simulacion/local");
+      notify("Iniciada prueba de dos nodos TCP locales (sin Docker).");
+      showView("laboratorio"); await loadDemo();
     }));
     $("cleanupSimulation").addEventListener("click",()=>action($("cleanupSimulation"),async () => {
       if (!confirm("¿Eliminar los contenedores y volúmenes de prueba del laboratorio?")) return;
