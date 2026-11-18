@@ -1,6 +1,6 @@
 # Manual de usuario y puesta en marcha de LocalSync
 
-**Uso previsto:** transferir archivos y carpetas manualmente entre computadores de una red local; no se configura sincronización automática.
+**Uso previsto:** transferir archivos manualmente o mantener una carpeta sincronizada entre dos computadores de una red local. La sincronización requiere activación explícita y autenticación.
 
 ## 1. Preparación
 
@@ -81,7 +81,7 @@ Por defecto, el receptor usa `keep-both`:
 - Si tiene **otro contenido con el mismo nombre**, conserva el original y crea una copia como `informe.conflict-<12 caracteres SHA>.pdf`.
 - En el cliente CLI existen `--on-conflict reject` (rechaza) y `overwrite` (sustituye explícitamente). Se recomienda **keep-both** para auditoría y uso normal.
 
-No hay una función de "sincronizar borrados": eliminar un archivo en la GUI solo lo elimina de la bandeja local.
+Eliminar un archivo desde la bandeja manual solo lo elimina localmente. La sincronización automática tiene una opción separada de propagación de borrados, **desactivada por defecto**; requiere autorización de ambos equipos y archiva el archivo en papelera.
 
 ## 5. Ejecución por línea de comandos
 
@@ -166,4 +166,28 @@ No elevar Uvicorn a `0.0.0.0:8080` para "solucionar" una conexión entre equipos
 - No subir tokens, claves privadas, archivos personales ni bases locales.
 - Leer el [plan de validación](PRUEBAS_Y_VALIDACION.md).
 
-**Límites:** el historial de eventos del panel no es persistente; no existe detección automática de cambios, propagación remota de eliminación ni reanudación por fragmentos.
+**Límites:** el historial del panel manual es volátil, pero la cola y las versiones del motor automático se guardan en SQLite. Hay detección Watchdog/escaneo, borrado remoto opt-in y reanudación parcial por offset. No hay consenso distribuido para resolver ediciones concurrentes.
+
+
+## 9. Sincronización automática y modo compartido (versión actual)
+
+Para uso completo entre dos equipos:
+
+1. Inicia LocalSync en A y B desde `main`.
+2. En ambos paneles, genera/comparte de forma privada un token y habilita el receptor TCP **Red local** con **Recibir directamente en carpeta sincronizada**.
+3. En ambos paneles, entra a **Sincronización**, autoriza la IPv4 del otro equipo con puerto 9001 y mismo token. Pulsa **Iniciar sincronización**.
+4. Crea un archivo en `carpeta_sincronizada/` de A. Se replicará sin pulsar Enviar. Modifica luego el archivo en B y observa la actualización en A.
+5. Consulta en el panel las operaciones pendientes, errores y versiones. Si desconectas uno de los equipos, los envíos fallidos permanecen en SQLite para ser reintentados.
+6. Pulsa **Ver versiones** y **Restaurar** si quieres recuperar un contenido anterior.
+7. Para buscar el receptor sin introducir su IP, usa **Buscar equipos** con el token compartido y UDP 9002 habilitado. El dispositivo encontrado requiere confirmación manual.
+8. Para propagar borrados, marca las opciones del receptor y del motor de sincronización; ambas están apagadas por defecto. Los borrados se archivan en `.localsync_deleted`.
+
+**No equivale a edición colaborativa con consenso:** si A y B editan el mismo archivo exactamente al mismo tiempo, la última versión aplicada puede prevalecer; se conservan respaldos para recuperación.
+
+### Sincronización con servicio
+
+En Ubuntu puedes usar `recursos/systemd/localsync-autosync.service` y `LOCALSYNC_AUTOSTART=1` para iniciar el receptor y Watchdog al arrancar la máquina. En Windows el iniciador GUI es manual salvo que configures una tarea privada. Consulta [Despliegue final](DESPLIEGUE_FINAL.md) para las instrucciones completas.
+
+### Reanudación manual
+
+La casilla **Reanudar envíos interrumpidos** y el argumento CLI `--resume` utilizan parciales persistentes. En caso de corte, el siguiente intento continúa desde el desplazamiento del temporal si el archivo conserva ruta y SHA-256. Los parciales se verifican antes de publicar; no se debe borrar la carpeta `.localsync_partials` durante un envío pendiente.
