@@ -34,3 +34,17 @@ main{padding:38px clamp(22px,3.3vw,52px) 64px;max-width:1720px;width:100%;margin
 @media(max-width:780px){.app-shell{display:block}.sidebar{position:fixed;inset:0 auto 0 0;max-width:85vw;width:252px;transform:translateX(-110%);transition:transform .2s;box-shadow:0 0 40px #0009}.sidebar.visible{transform:none}.mobile-menu{display:block;font-size:19px;margin-right:10px}.topbar{height:65px}.version-pill,.topbar-time{display:none}main{padding-top:28px}.page-heading{align-items:flex-start;flex-direction:column}.stats-grid{grid-template-columns:repeat(2,1fr)}.lab-hero{padding:24px}.lab-test-grid{grid-template-columns:repeat(2,1fr)}.lab-result{flex-direction:column;gap:5px}.topology{padding:15px 8px}.device{min-width:90px}.device small{font-size:9px}.footer{display:block}.footer span{display:block;margin-top:5px}}
 @media(max-width:460px){.stats-grid,.steps-grid,.lab-test-grid{grid-template-columns:1fr}.panel{padding:18px}.lab-hero{padding:20px}.lab-node{min-width:0;padding:15px 8px}.lab-monitor{font-size:35px}.lab-wire{min-width:40px}.lab-wire span{font-size:23px}.form-grid{grid-template-columns:1fr}.head-actions{width:100%}.file-toolbar{flex-direction:column;align-items:stretch}.file-toolbar button{width:100%}.terminal-top{gap:7px;flex-wrap:wrap}.terminal-download{width:100%;margin:0}.overview-grid{gap:12px}.stat-value{font-size:25px}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+/* Gestión de archivos y controles accesibles */
+.file-actions{margin-left:auto;display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap}
+.file-actions .btn{font-size:10px;padding:7px 9px;min-height:34px}
+.file-actions .btn-danger{border:1px solid #784052;background:#432836;color:#ffd4db}
+.file-actions .btn-danger:hover:not(:disabled){background:#6b3347}
+.file-meta small{overflow-wrap:anywhere;word-break:break-word;display:block}
+.file-row{align-items:flex-start;min-height:58px}
+.ip-info{font-size:11px;line-height:1.6;color:#93b9c8;margin:3px 0 16px}
+.ip-info strong{color:#91ead4;font-weight:650}
+.operation-status{margin:12px 0;color:#b1c9d6;min-height:18px;font-size:12px}
+.operation-status.busy{color:#8fe8d3}
+.operation-status.error{color:#ffbac0}
+@media(max-width:900px){.file-actions{width:100%;margin-left:0;justify-content:flex-start}.file-row{flex-wrap:wrap}.file-meta{flex-basis:calc(100% - 60px)}}
