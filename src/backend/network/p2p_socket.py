@@ -43,7 +43,8 @@ class NodoP2PTCP:
                  carpeta_autorizada=None, *, auth_token: str | None = None,
                  insecure_lan: bool = False, tls_cert: str | None = None,
                  tls_key: str | None = None, on_conflict: str = "keep-both",
-                 max_workers: int = 8, on_received=None, allow_delete: bool = False) -> None:
+                 max_workers: int = 8, on_received=None, allow_delete: bool = False,
+                 on_before_overwrite=None, on_deleted=None) -> None:
         if not (1024 <= int(port) <= 65535):
             raise ValueError("El puerto TCP debe estar entre 1024 y 65535.")
         if (tls_cert is None) != (tls_key is None):
@@ -67,6 +68,8 @@ class NodoP2PTCP:
         self.max_workers = max_workers
         self.on_received = on_received
         self.allow_delete = bool(allow_delete)
+        self.on_before_overwrite = on_before_overwrite
+        self.on_deleted = on_deleted
         self.transporte_tcp_activo = False
         self.tls_activo = bool(tls_cert)
 
@@ -158,7 +161,8 @@ class NodoP2PTCP:
         elif mensaje["operacion"] == "CREATE" and self.carpeta_autorizada is not None:
             from .transferencia import recibir_archivo
             destino = recibir_archivo(conexion, mensaje, self.carpeta_autorizada,
-                                     on_conflict=self.on_conflict)
+                                     on_conflict=self.on_conflict,
+                                     on_before_overwrite=self.on_before_overwrite)
             self.enviar_trama(conexion, self.crear_mensaje_control(
                 "ACK", str(destino.relative_to(Path(self.carpeta_autorizada).resolve()).as_posix()),
                 mensaje["hash_sha256"], mensaje["tamano_bytes"],
@@ -187,6 +191,8 @@ class NodoP2PTCP:
                 papelera.mkdir(exist_ok=True)
                 respaldo = papelera / (str(time.time_ns()) + "-" + destino.name)
                 shutil.move(str(destino), str(respaldo))
+            if self.on_deleted is not None:
+                self.on_deleted(destino, mensaje)
             self.enviar_trama(conexion, self.crear_mensaje_control(
                 "ACK", mensaje["ruta_relativa"], "0" * 64, 0))
             print(f"[LocalSync][BORRADO_ARCHIVADO] {mensaje['ruta_relativa']}", flush=True)
