@@ -1,6 +1,6 @@
 # Especificación técnica del protocolo TCP de LocalSync
 
-**Identificador:** `LOCALSYNC_P2P_V1` · **Implementación:** `src/backend/network/p2p_socket.py` y `cliente_tcp.py` · **Estado:** transferencia manual de archivos.
+**Identificador:** `LOCALSYNC_P2P_V1` · **Implementación:** `src/backend/network/p2p_socket.py` y `cliente_tcp.py` · **Estado:** transferencia manual y automática, reanudación, borrado autenticado opt-in.
 
 ## 1. Objetivo y alcance
 
@@ -38,12 +38,12 @@ El límite de **trama JSON es de 1 MiB**; el cuerpo binario **no** está conteni
 | Propiedad | Tipo | Regla |
 | --- | --- | --- |
 | `protocolo` | cadena | Literal `LOCALSYNC_P2P_V1` |
-| `operacion` | cadena | `CREATE` para transferencia; `PING`, `ACK` y `ERROR` para control |
+| `operacion` | cadena | `CREATE`, `CREATE_RESUME`, `DELETE` (opt-in), `PING`, `ACK`, `ERROR` y autenticación |
 | `ruta_relativa` | cadena | Relativa a la carpeta autorizada, sin `..`, ruta absoluta ni enlaces simbólicos |
 | `hash_sha256` | cadena | 64 caracteres hexadecimales |
 | `tamano_bytes` | entero | En archivos, de 0 a 104 857 600 (100 MiB) |
 
-La capa de serialización también **reconoce** `MODIFY`, `DELETE`, `AUTH_INIT`, `AUTH_CHALLENGE` y `AUTH_RESPONSE`. **Reconocer un nombre de operación no significa implementarlo como acción de sincronización**: el receptor de archivos actualmente atiende `PING` y `CREATE`; `MODIFY` y `DELETE` se rechazan como operaciones no admitidas.
+El receptor atiende `PING`, `CREATE`, `CREATE_RESUME` y `DELETE` cuando está permitido. `DELETE` requiere autenticación HMAC y habilitación expresa; el archivo se mueve a una papelera interna. `MODIFY` sigue siendo un nombre reconocido por el serializador, pero el sincronizador aplica modificaciones enviando `CREATE_RESUME`/`CREATE` con contenido nuevo y respaldo previo.
 
 ## 3. Autenticación HMAC-SHA256
 
@@ -134,7 +134,7 @@ Si el archivo recibido tiene **mismo contenido y hash**, se reutiliza el destino
 - Hasta **8 workers concurrentes por defecto** en el servidor, configurables entre 1 y 64.
 - Semáforo de admisión limita los clientes pendientes.
 - El socket de atención usa `settimeout(15)`. El cliente usa timeouts configurables.
-- El cliente puede realizar `--retries N` con espera progresiva ante fallos de red. Los reintentos vuelven a enviar el archivo **desde byte 0** y no conforman un sistema de cola persistente.
+- El cliente puede realizar `--retries N` con espera progresiva. Con `--resume`, negocia el offset y continúa desde el byte faltante; sin ese parámetro, envía de nuevo el archivo completo. La **cola SQLite** del motor automático guarda operaciones pendientes más allá de una sesión de conexión.
 - El envío de carpeta recorre archivos normales y conserva la ruta relativa; los enlaces simbólicos no se envían como archivos regulares.
 
 ### Fallos controlados
@@ -146,7 +146,7 @@ Si el archivo recibido tiene **mismo contenido y hash**, se reutiliza el destino
 | Trama JSON inválida o demasiado larga | Rechazo; no se publica archivo |
 | Ruta absoluta, `..` o symlink | Rechazo por seguridad |
 | Tamaño mayor de 100 MiB | Rechazo antes de publicar |
-| Cierre prematuro de conexión | Error y limpieza temporal |
+| Cierre prematuro de conexión | En `CREATE` se elimina el temporal; en `CREATE_RESUME` se conserva el parcial para reanudar |
 | Hash distinto | Rechazo y limpieza del temporal |
 | Conflicto con `reject` | Error sin alterar archivo original |
 | Mismo contenido ya recibido | Confirmación sin duplicar |
@@ -162,4 +162,40 @@ Si el archivo recibido tiene **mismo contenido y hash**, se reutiliza el destino
 
 `pruebas/test_tcp_servidor.py`, `test_cliente_tcp.py`, `test_transferencia.py`, `test_lan_completo.py` y `test_dos_nodos_tcp.py`; además de `simulacion/demo_local.py` y `simulacion/demo.py` para integración.
 
-**No implementado:** negociación de versiones, checksum por fragmento, reanudación parcial, revocación dinámica de credenciales ni `MODIFY` / `DELETE` remotos.
+**Límites:** no hay negociación de versiones de protocolo, checksums por fragmento, consenso distribuido de ediciones concurrentes ni revocación dinámica de credenciales. La reanudación por offset y `DELETE` opt-in sí están implementados.
+
+
+## 9. Reanudación `CREATE_RESUME`
+
+```mermaid
+sequenceDiagram
+    participant A as Emisor
+    participant B as Receptor
+    A->>B: CREATE_RESUME (ruta, SHA-256 y tamaño completo)
+    B->>B: Revisar parcial bajo .localsync_partials
+    B-->>A: ACK con tamano_bytes = offset ya recibido
+    A->>A: Posicionar archivo en offset
+    A->>B: Enviar solo los bytes faltantes
+    B->>B: Calcular SHA-256 final
+    alt Hash correcto
+        B-->>A: ACK final con ruta y SHA-256
+    else Archivo corrupto
+        B-->>A: ERROR, descartar parcial inválido
+    end
+```
+
+- La identidad del temporal deriva de **ruta relativa y SHA-256**, evitando mezclar dos versiones diferentes.
+- Si el destino ya tiene exactamente el contenido solicitado, se devuelve `offset=tamaño` sin retransmitir bytes.
+- Si la conexión cae a mitad del cuerpo, el temporal permanece en disco para el siguiente intento; el archivo definitivo solo se publica después de validar integridad.
+- El motor automático usa `reanudar=True` por defecto; los envíos manuales pueden habilitarlo desde la casilla **Reanudar envíos interrumpidos** o con `--resume` en CLI.
+- **No hay limpieza automática de parciales abandonados**, ni política de cuota total por equipo. El administrador debe supervisar el espacio.
+
+## 10. Sincronización bidireccional, versiones y eliminación
+
+La sincronización vigila una carpeta mediante Watchdog + escaneo. Para editar en ambas direcciones es necesario iniciar receptores con **carpeta compartida** y configurar cada nodo como par autorizado del otro. Cada recepción cambia el snapshot local y elimina trabajos que causarían rebotes inmediatos.
+
+Con `overwrite` explícito de carpeta compartida, el sistema guarda la versión anterior en la base de respaldos antes de reemplazar el archivo; el índice `sync_versions` permite restaurar. **No hay consenso de cambios simultáneos**; el último cambio aplicado ocupa el nombre original.
+
+`DELETE` es una operación autenticada. El receptor solo la admite con autorización explícita y mueve el archivo a `.localsync_deleted`, no lo destruye. El cliente valida el `ACK` de la ruta solicitada. La API HTTP `DELETE /api/lan/archivo`, en cambio, elimina un archivo **local** de una bandeja; son acciones distintas.
+
+Más detalles: [Arquitectura](ARQUITECTURA.md) y [Despliegue final](DESPLIEGUE_FINAL.md).
